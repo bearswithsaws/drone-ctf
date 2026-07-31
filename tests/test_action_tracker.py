@@ -1,0 +1,325 @@
+"""Simulated-loss tests for the three-signal ActionTracker."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+import pytest
+
+from agent.bus import EventBus
+from agent.transport.action_tracker import (
+    TOPIC_ACTION_LIFECYCLE,
+    TOPIC_ACTION_LOSS,
+    ActionLifecycleEvent,
+    ActionLossEvent,
+    ActionTracker,
+    EntityKind,
+    IntentState,
+    LossKind,
+)
+
+
+@dataclass
+class FakeResult:
+    data: dict[str, Any]
+    ok: bool = True
+
+
+class FakeRest:
+    def __init__(self, action_ids: list[str | None]) -> None:
+        self.action_ids = iter(action_ids)
+        self.posts: list[tuple[str, dict[str, Any]]] = []
+        self.gets: list[str] = []
+        self.queues: dict[str, Any] = {
+            "/queue/drones": [],
+            "/queue/buildings": [],
+        }
+        self.poll_ok = True
+
+    async def post(self, path: str, json: dict[str, Any] | None = None) -> FakeResult:
+        self.posts.append((path, dict(json or {})))
+        action_id = next(self.action_ids)
+        if action_id is None:
+            return FakeResult({"error": {"message": "connection lost"}}, ok=False)
+        return FakeResult({"action_id": action_id})
+
+    async def get(self, path: str, params: dict[str, Any] | None = None) -> FakeResult:
+        self.gets.append(path)
+        return FakeResult({"actions": self.queues[path]}, ok=self.poll_ok)
+
+
+class FakeClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float = 1.0) -> None:
+        self.now += seconds
+
+
+@dataclass
+class Harness:
+    tracker: ActionTracker
+    rest: FakeRest
+    clock: FakeClock
+    lifecycle: list[ActionLifecycleEvent]
+    losses: list[ActionLossEvent]
+
+
+def make_harness(action_ids: list[str | None]) -> Harness:
+    rest = FakeRest(action_ids)
+    clock = FakeClock()
+    bus = EventBus()
+    lifecycle: list[ActionLifecycleEvent] = []
+    losses: list[ActionLossEvent] = []
+
+    async def capture_lifecycle(_topic: str, event: ActionLifecycleEvent) -> None:
+        lifecycle.append(event)
+
+    async def capture_loss(_topic: str, event: ActionLossEvent) -> None:
+        losses.append(event)
+
+    bus.subscribe(TOPIC_ACTION_LIFECYCLE, capture_lifecycle)
+    bus.subscribe(TOPIC_ACTION_LOSS, capture_loss)
+    tracker = ActionTracker(rest, bus, ack_timeout=lambda _distance: 1.0, clock=clock)
+    return Harness(tracker, rest, clock, lifecycle, losses)
+
+
+async def submit_drive(harness: Harness, *, precondition=lambda: True) -> None:
+    await harness.tracker.submit(
+        "move-1",
+        EntityKind.DRONE,
+        "drone-7",
+        "propulsion/drive",
+        payload={"direction": "forward", "level": 1},
+        distance=12,
+        precondition=precondition,
+    )
+
+
+async def test_drop_command_resubmits_then_reaches_completed() -> None:
+    h = make_harness(["lost-id", "retry-id"])
+    await submit_drive(h)
+
+    # No queued report and the first action is absent from the authoritative queue.
+    h.clock.advance()
+    await h.tracker.reconcile()
+    assert [path for path, _body in h.rest.posts] == [
+        "/drones/drone-7/propulsion/drive",
+        "/drones/drone-7/propulsion/drive",
+    ]
+    assert h.tracker.get("move-1").attempts == 2  # type: ignore[union-attr]
+    assert [event.kind for event in h.losses] == [LossKind.COMMAND]
+
+    await h.tracker.on_message(
+        {
+            "message_type": "action_queued",
+            "action_id": "retry-id",
+            "details": {"cycles_required": 2},
+        }
+    )
+    await h.tracker.on_message(
+        {"message_type": "action_completed", "action_id": "retry-id", "details": {}}
+    )
+    intent = h.tracker.get("move-1")
+    assert intent is not None
+    assert intent.state is IntentState.COMPLETED
+    assert intent.action_id == "retry-id"
+
+
+async def test_drop_queued_report_is_recovered_from_queue_without_resubmit() -> None:
+    h = make_harness(["action-1"])
+    await submit_drive(h)
+    h.rest.queues["/queue/drones"] = [{"action_id": "action-1", "drone_id": "drone-7"}]
+
+    h.clock.advance()
+    await h.tracker.reconcile()
+    intent = h.tracker.get("move-1")
+    assert intent is not None
+    assert intent.state is IntentState.QUEUED
+    assert len(h.rest.posts) == 1
+    assert [event.kind for event in h.losses] == [LossKind.QUEUED_REPORT]
+
+    await h.tracker.on_message(
+        {"message_type": "action_completed", "action_id": "action-1", "details": {}}
+    )
+    assert h.tracker.get("move-1").state is IntentState.COMPLETED  # type: ignore[union-attr]
+
+
+async def test_drop_completed_report_is_inferred_when_action_leaves_queue() -> None:
+    h = make_harness(["action-1"])
+    await submit_drive(h)
+    await h.tracker.on_message(
+        {
+            "message_type": "action_queued",
+            "action_id": "action-1",
+            "details": {"cycles_required": 2},
+        }
+    )
+
+    # 2 cycles x .25s plus the 1s ack window.
+    h.clock.advance(1.5)
+    await h.tracker.reconcile()
+    intent = h.tracker.get("move-1")
+    assert intent is not None
+    assert intent.state is IntentState.COMPLETED
+    assert intent.inferred_terminal is True
+    assert [event.kind for event in h.losses] == [LossKind.COMPLETION_REPORT]
+    assert h.lifecycle[-1].reason == "queue_poll_action_disappeared"
+
+
+async def test_changed_precondition_abandons_without_double_submission() -> None:
+    h = make_harness(["action-1"])
+    still_holds = False
+    await submit_drive(h, precondition=lambda: still_holds)
+
+    h.clock.advance()
+    await h.tracker.reconcile()
+    intent = h.tracker.get("move-1")
+    assert intent is not None
+    assert intent.state is IntentState.ABANDONED
+    assert intent.terminal
+    assert len(h.rest.posts) == 1
+    assert h.lifecycle[-1].reason == "precondition_changed"
+
+
+async def test_completed_without_queued_infers_queued_report_loss() -> None:
+    h = make_harness(["action-1"])
+    await submit_drive(h)
+    await h.tracker.on_message(
+        {"message_type": "action_completed", "action_id": "action-1", "details": {}}
+    )
+
+    assert h.tracker.get("move-1").state is IntentState.COMPLETED  # type: ignore[union-attr]
+    assert [event.kind for event in h.losses] == [LossKind.QUEUED_REPORT]
+    assert h.lifecycle[-1].previous_state is IntentState.SUBMITTED
+
+
+async def test_failed_action_reaches_failed_terminal_state() -> None:
+    h = make_harness(["action-1"])
+    await submit_drive(h)
+    await h.tracker.on_message(
+        {"message_type": "action_queued", "action_id": "action-1", "details": {}}
+    )
+    await h.tracker.on_message(
+        {
+            "message_type": "action_failed",
+            "action_id": "action-1",
+            "details": {"error": "occupied"},
+        }
+    )
+
+    intent = h.tracker.get("move-1")
+    assert intent is not None
+    assert intent.state is IntentState.FAILED
+    assert intent.last_message is not None
+    assert intent.last_message["details"]["error"] == "occupied"
+
+
+async def test_building_actions_poll_the_building_queue() -> None:
+    h = make_harness(["build-1"])
+    await h.tracker.submit(
+        "base-status",
+        EntityKind.BUILDING,
+        "base-3",
+        "common/status",
+        precondition=lambda: True,
+    )
+    h.rest.queues["/queue/buildings"] = {
+        "base-3": [{"action_id": "build-1"}]
+    }
+
+    h.clock.advance()
+    await h.tracker.reconcile()
+    assert h.rest.gets == ["/queue/buildings"]
+    assert h.tracker.get("base-status").state is IntentState.QUEUED  # type: ignore[union-attr]
+
+
+async def test_duplicate_local_id_is_idempotent_but_conflicts_are_rejected() -> None:
+    h = make_harness(["action-1"])
+    await submit_drive(h)
+    await submit_drive(h)
+    assert len(h.rest.posts) == 1
+
+    with pytest.raises(ValueError, match="already belongs"):
+        await h.tracker.submit(
+            "move-1",
+            EntityKind.DRONE,
+            "drone-7",
+            "propulsion/turn",
+            precondition=lambda: True,
+        )
+
+
+async def test_message_arriving_before_post_response_is_replayed() -> None:
+    h = make_harness(["action-1"])
+    await h.tracker.on_message(
+        {"message_type": "action_completed", "action_id": "action-1", "details": {}}
+    )
+    await submit_drive(h)
+
+    intent = h.tracker.get("move-1")
+    assert intent is not None
+    assert intent.state is IntentState.COMPLETED
+    assert [event.kind for event in h.losses] == [LossKind.QUEUED_REPORT]
+
+
+async def test_queue_poll_failure_does_not_infer_loss_or_resubmit() -> None:
+    h = make_harness(["action-1"])
+    await submit_drive(h)
+    h.rest.poll_ok = False
+
+    h.clock.advance()
+    await h.tracker.reconcile()
+    assert len(h.rest.posts) == 1
+    assert not h.losses
+    assert h.tracker.get("move-1").state is IntentState.SUBMITTED  # type: ignore[union-attr]
+    assert h.lifecycle[-1].reason == "queue_poll_failed"
+
+
+async def test_late_failure_corrects_an_inferred_completion() -> None:
+    h = make_harness(["action-1"])
+    await submit_drive(h)
+    await h.tracker.on_message(
+        {"message_type": "action_queued", "action_id": "action-1", "details": {}}
+    )
+    h.clock.advance()
+    await h.tracker.reconcile()
+    assert h.tracker.get("move-1").state is IntentState.COMPLETED  # type: ignore[union-attr]
+
+    await h.tracker.on_message(
+        {"message_type": "action_failed", "action_id": "action-1", "details": {}}
+    )
+    intent = h.tracker.get("move-1")
+    assert intent is not None
+    assert intent.state is IntentState.FAILED
+    assert intent.inferred_terminal is False
+
+
+async def test_async_precondition_is_supported() -> None:
+    h = make_harness(["action-1", "action-2"])
+
+    async def holds() -> bool:
+        return True
+
+    await submit_drive(h, precondition=holds)
+    h.clock.advance()
+    await h.tracker.reconcile()
+    assert len(h.rest.posts) == 2
+
+
+async def test_distance_is_exposed_on_loss_for_comms_calibration() -> None:
+    h = make_harness(["action-1"])
+    await submit_drive(h)
+    h.clock.advance()
+    await h.tracker.reconcile()
+    assert h.losses[0].distance == 12
+
+
+def test_entity_kind_and_state_values_are_stable_for_metrics() -> None:
+    assert EntityKind.DRONE.value == "drone"
+    assert IntentState.COMPLETED.value == "completed"
+    assert LossKind.COMMAND.value == "command_lost"

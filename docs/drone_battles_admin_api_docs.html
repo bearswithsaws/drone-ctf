@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drone Battles Admin API - API Documentation</title>
+<style>
+:root{--primary:#006AFF;--primary-light:#E8F0FE;--bg:#ffffff;--bg-subtle:#f5f7fa;--bg-muted:#edf0f5;--text:#1a1a2e;--text-sec:#5a6178;--text-muted:#8b92a8;--border:#e2e6ef;--ok:#0fa958;--ok-light:#eaf7ef;--warn:#2563eb;--warn-light:#dbeafe;--err:#e5393d;--err-light:#fdeaea;--get:#006AFF;--get-bg:#E8F0FE;--post:#0fa958;--post-bg:#eaf7ef;--del:#e5393d;--del-bg:#fdeaea;--shadow:0 1px 3px rgba(0,0,0,0.06);--radius:12px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg-subtle);color:var(--text);line-height:1.6;padding:24px}
+.container{max-width:1200px;margin:0 auto}
+header{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:32px;margin-bottom:24px;box-shadow:var(--shadow)}
+header h1{font-size:2em;font-weight:800;margin-bottom:8px}
+header .version{color:var(--primary);font-size:1em;font-weight:600}
+header .desc{color:var(--text-sec);margin-top:8px}
+header code{background:var(--bg-muted);padding:2px 8px;border-radius:5px;font-family:"Consolas",monospace;font-size:0.88em;color:var(--primary)}
+.auth-info{background:var(--bg);border:1px solid var(--border);border-left:4px solid var(--warn);padding:20px 24px;margin-bottom:24px;border-radius:0 var(--radius) var(--radius) 0;box-shadow:var(--shadow)}
+.auth-info h3{color:var(--warn);margin-bottom:8px;font-weight:700}
+.auth-info p{color:var(--text-sec);font-size:0.92em}
+.auth-info code{background:var(--bg-muted);padding:3px 8px;border-radius:5px;font-family:"Consolas",monospace;font-size:0.88em}
+.section{background:var(--bg);border-radius:var(--radius);margin-bottom:24px;overflow:hidden;border:1px solid var(--border);box-shadow:var(--shadow)}
+.section-header{background:var(--bg-subtle);padding:20px 24px;border-bottom:1px solid var(--border)}
+.section-header h2{margin-bottom:4px;font-size:1.3em}
+.section-header .prefix{color:var(--primary);font-family:"Consolas",monospace;font-size:0.88em}
+.section-header .desc{color:var(--text-sec);margin-top:6px;font-size:0.92em}
+.cat-header{background:var(--bg-muted);padding:12px 24px;border-bottom:1px solid var(--border);border-top:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.cat-header h3{font-size:0.95em;font-weight:700;color:var(--primary);margin:0}
+.cat-header .count{font-size:0.75em;color:var(--text-muted);background:var(--bg);padding:2px 8px;border-radius:10px;border:1px solid var(--border)}
+.endpoint{border-bottom:1px solid var(--border);padding:24px}
+.endpoint:last-child{border-bottom:none}
+.ep-header{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.method{padding:5px 12px;border-radius:6px;font-weight:700;font-size:0.78em;text-transform:uppercase;min-width:64px;text-align:center;letter-spacing:0.03em}
+.method.get{background:var(--get-bg);color:var(--get)}.method.post{background:var(--post-bg);color:var(--post)}.method.delete{background:var(--del-bg);color:var(--del)}
+.path{font-family:"Consolas",monospace;font-size:0.95em;font-weight:500}
+.auth-badge{padding:3px 10px;border-radius:6px;font-size:0.72em;text-transform:uppercase;font-weight:700;letter-spacing:0.04em}
+.auth-badge.required{background:var(--err-light);color:var(--err)}
+.auth-badge.optional{background:var(--bg-muted);color:var(--text-muted)}
+.summary{color:var(--text-sec);margin-bottom:14px;font-size:0.92em}
+.detail{background:var(--bg-subtle);padding:16px;border-radius:8px;border:1px solid var(--border);margin-bottom:12px}
+.detail h4{color:var(--primary);margin-bottom:10px;font-size:0.8em;text-transform:uppercase;letter-spacing:0.05em;font-weight:700}
+.detail pre{background:transparent;margin:0;white-space:pre-wrap;font-family:"Consolas",monospace;font-size:0.85em;color:var(--text-sec)}
+.detail .note{color:var(--warn);font-style:italic;margin-top:10px;font-size:0.9em}
+.detail ul{list-style:none;padding:0}
+.detail li{color:var(--err);margin:4px 0;font-size:0.9em}
+table{width:100%;border-collapse:collapse;font-size:0.92em}
+th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--border)}
+th{background:var(--bg-subtle);font-weight:600;font-size:0.85em;text-transform:uppercase;letter-spacing:0.03em}
+td:first-child{font-family:"Consolas",monospace;color:var(--primary);font-weight:700}
+td{color:var(--text-sec)}
+footer{text-align:center;padding:32px 24px;color:var(--text-muted);font-size:0.85em}
+@media print{body{padding:0}.section{break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+<h1>Drone Battles Admin API</h1>
+<span class="version">Version 1.0</span>
+<p class="desc">Administrative API for full control over the game state. All endpoints require admin authentication. The admin API is entirely synchronous: every request is executed immediately and the result is returned in the HTTP response — unlike the game API, there is no action queue and no result message to poll for.</p>
+<p style="margin-top:10px;color:var(--primary);font-weight:600;font-size:0.92em">Base URL: <code>/api/v1/admin</code></p>
+</header>
+<div class="auth-info"><h3>Authentication</h3>
+<p><strong>Type:</strong> Bearer Token</p>
+<p>All admin endpoints require the Bearer token of an admin account. Register an admin account with the admin registration code, then log in to obtain the token.</p>
+<p style="margin-top:10px"><code>Authorization: Bearer &lt;token&gt;</code></p>
+</div>
+<section class="section" id="map-asset-overview">
+<div class="section-header"><h2>Map &amp; Asset Overview</h2>
+<span class="prefix">/admin</span>
+<p class="desc">View complete map data and all game assets</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/map</span>
+</div>
+<p class="summary">Get complete map data including all tiles, terrain, and elevations</p>
+<div class="detail"><h4>Response</h4><pre>height: integer
+tile_count: integer
+tiles: [array of tile objects]
+width: integer
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/map/summary</span>
+</div>
+<p class="summary">Get map summary without full tile data</p>
+<div class="detail"><h4>Response</h4><pre>base_count: integer
+building_count: integer
+drone_count: integer
+height: integer
+resource_count: integer
+terrain_stats: object
+tile_count: integer
+user_count: integer
+width: integer
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/assets</span>
+</div>
+<p class="summary">Get all game assets (users, bases, buildings, drones, resources)</p>
+<div class="detail"><h4>Response</h4><pre>bases: [array of base objects]
+buildings: [array of building objects]
+drones: [array of drone objects]
+resources: [array of resource objects]
+users: [array of user summaries]
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/assets/buildings</span>
+</div>
+<p class="summary">Get all buildings with full details</p>
+<div class="detail"><h4>Response</h4><pre>buildings: [array]
+count: integer
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/assets/drones</span>
+</div>
+<p class="summary">Get all drones with full details</p>
+<div class="detail"><h4>Response</h4><pre>count: integer
+drones: [array]
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/assets/resources</span>
+</div>
+<p class="summary">Get all resource nodes</p>
+<div class="detail"><h4>Response</h4><pre>count: integer
+resources: [array]
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/assets/bases</span>
+</div>
+<p class="summary">Get all bases</p>
+<div class="detail"><h4>Response</h4><pre>bases: [array]
+count: integer
+</pre></div>
+</div>
+</section>
+<section class="section" id="building-management">
+<div class="section-header"><h2>Building Management</h2>
+<span class="prefix">/admin/buildings</span>
+<p class="desc">CRUD operations for buildings</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings</span>
+</div>
+<p class="summary">Create a new building</p>
+<div class="detail"><h4>Request Body</h4><pre>building_type: string (required) - one of: command_center, solar_panel_array, battery_array, drone_charging_station, refiner, drone_production_plant, silo, shield_array, drone_equipment_production_plant, drone_repair_station, laser_turret, missile_turret, auto_cannon_turret, sensor_array, point_defense_system, lucas_launcher
+origin_q: integer (required) - top-left column of the building footprint; must be on-map with enough unoccupied tiles for the building size
+origin_r: integer (required) - top-left row of the building footprint
+owner_id: string (required) - user_id of an existing user
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "building_type": "solar_panel_array",
+  "origin_q": 50,
+  "origin_r": 50,
+  "owner_id": "user-123"
+}</pre></div>
+<div class="detail"><h4>Errors</h4><pre>400: MISSING_FIELDS
+400: INVALID_BUILDING_TYPE (response details include valid_types)
+500: BUILDING_CREATION_FAILED (location occupied or off-map)
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/buildings/&lt;building_id&gt;</span>
+</div>
+<p class="summary">Get detailed information about a specific building</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method patch">PATCH</span>
+<span class="path">/buildings/&lt;building_id&gt;</span>
+</div>
+<p class="summary">Modify a building's properties</p>
+<div class="detail"><h4>Request Body</h4><pre>current_health: number (optional) - clamped to the building's max_health
+owner_id: string (optional) - user_id of an existing user; transfers ownership
+shields: number (optional) - clamped to the building's max_shields
+</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Only these three fields are applied; any other fields in the body are ignored.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method delete">DELETE</span>
+<span class="path">/buildings/&lt;building_id&gt;</span>
+</div>
+<p class="summary">Remove a building from the game</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/resources</span>
+</div>
+<p class="summary">Add resources to a building's storage</p>
+<div class="detail"><h4>Request Body</h4><pre>amount: number (required, &gt; 0)
+resource_type: string (required) - refined resources: titanium_parts, battery_materials, enriched_unobtanium; raw ore (refiner/silo): titanium_ore, rare_earth_ore, unobtanium_ore
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "amount": 50,
+  "resource_type": "titanium_parts"
+}</pre></div>
+<div class="detail"><h4>Errors</h4><pre>400: MISSING_FIELDS
+400: INVALID_FIELDS (amount not a positive number)
+400: RESOURCE_ADD_FAILED (building has no storage)
+404: building not found
+</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Storage capacity limits apply - the response's amount_added reports what was actually stored. Battery arrays store the amount as power regardless of resource_type. Buildings without storage return 400.</p></div>
+</div>
+</section>
+<section class="section" id="drone-management">
+<div class="section-header"><h2>Drone Management</h2>
+<span class="prefix">/admin/drones</span>
+<p class="desc">CRUD operations for drones</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones</span>
+</div>
+<p class="summary">Create a new baseline drone with optional starting equipment</p>
+<div class="detail"><h4>Request Body</h4><pre>equipment: array of equipment type strings (optional) - see valid types in notes; the baseline drone has 6 equipment slots
+location_q: integer (required) - must be an on-map, passable, unoccupied tile
+location_r: integer (required)
+owner_id: string (required) - user_id of an existing user
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "equipment": [
+    "drill",
+    "hopper",
+    "propulsion",
+    "sensors"
+  ],
+  "location_q": 50,
+  "location_r": 50,
+  "owner_id": "user-123"
+}</pre></div>
+<div class="detail"><h4>Errors</h4><pre>400: MISSING_FIELDS
+400: INVALID_EQUIPMENT (response details include valid_types)
+400: DRONE_CREATION_FAILED (tile invalid or occupied)
+</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Drone stats (speed, battery, health, armour, accuracy, slots) come from config/drones.json and cannot be set per-drone. Valid equipment types: drill, sensors, hopper, propulsion, battery, portable_charger, reactive_armour, mobile_repair_kit, shield_generator, laser_cannon, hover_tech, targeting_computer, wire_guided_missile, auto_cannon, armour_piercing_ammunition (alias: ap_ammunition), high_explosive_ammunition (alias: he_ammunition), canister_round_ammunition (alias: canister_ammunition), df_antenna, jammer, antenna, repeater, land_mine, signature_dampener, decoy_beacon, smoke_launcher, point_defense, seismic_sensor, howitzer, howitzer_shells, howitzer_charges</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/drones/&lt;drone_id&gt;</span>
+</div>
+<p class="summary">Get detailed information about a specific drone</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method patch">PATCH</span>
+<span class="path">/drones/&lt;drone_id&gt;</span>
+</div>
+<p class="summary">Modify a drone's properties</p>
+<div class="detail"><h4>Request Body</h4><pre>current_battery: number (optional) - clamped to the drone's max_battery (baseline max: 4000)
+current_health: number (optional) - clamped to the drone's max_health
+direction: integer (optional) - hex facing 0-5 (0=NE, increments clockwise); other values wrap modulo 6
+location_q: integer (optional) - must be sent together with location_r; target tile must be valid and unoccupied
+location_r: integer (optional) - must be sent together with location_q
+owner_id: string (optional) - user_id of an existing user; transfers ownership
+shields: number (optional) - clamped to the drone's max_shields
+</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Only the listed fields are applied; any other fields in the body are ignored.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method delete">DELETE</span>
+<span class="path">/drones/&lt;drone_id&gt;</span>
+</div>
+<p class="summary">Remove a drone from the game</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/equipment</span>
+</div>
+<p class="summary">Add equipment to a drone</p>
+<div class="detail"><h4>Request Body</h4><pre>equipment_type: string (required) - same valid types as POST /drones (case-insensitive); fails if the drone has no free equipment slot
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "equipment_type": "laser_cannon"
+}</pre></div>
+<div class="detail"><h4>Errors</h4><pre>400: INVALID_EQUIPMENT (response details include valid_types)
+400: EQUIPMENT_ADD_FAILED (no free slot or drone not found)
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/charge</span>
+</div>
+<p class="summary">Fully charge a drone's battery to maximum</p>
+<div class="detail"><h4>Errors</h4><pre>404: CHARGE_FAILED (drone not found)
+</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">No request body. Response includes battery_before and battery_after.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/repair</span>
+</div>
+<p class="summary">Fully repair a drone's health, shields, and all equipment durability</p>
+<div class="detail"><h4>Errors</h4><pre>404: REPAIR_FAILED (drone not found)
+</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">No request body. Response includes health_before, health_after, and equipment_repaired count.</p></div>
+</div>
+</section>
+<section class="section" id="resource-management">
+<div class="section-header"><h2>Resource Management</h2>
+<span class="prefix">/admin/resources</span>
+<p class="desc">CRUD operations for resource nodes</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/resources</span>
+</div>
+<p class="summary">Create a new resource node</p>
+<div class="detail"><h4>Request Body</h4><pre>ore_type: string (optional, default 'titanium_ore') - one of: titanium_ore, rare_earth_ore, unobtanium_ore
+q: integer (required) - must be an on-map, unoccupied tile
+r: integer (required)
+volume: integer (optional, default 500) - units of ore in the node; 'ore_volume' is accepted as an alias
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "ore_type": "unobtanium_ore",
+  "q": 30,
+  "r": 40,
+  "volume": 1000
+}</pre></div>
+<div class="detail"><h4>Errors</h4><pre>400: MISSING_FIELDS
+400: RESOURCE_CREATION_FAILED (invalid ore type, tile occupied, or off-map)
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method patch">PATCH</span>
+<span class="path">/resources/&lt;resource_id&gt;</span>
+</div>
+<p class="summary">Modify a resource's properties</p>
+<div class="detail"><h4>Request Body</h4><pre>ore_type: string (optional) - one of: titanium_ore, rare_earth_ore, unobtanium_ore
+volume: number (optional) - remaining ore units; 'ore_volume' is accepted as an alias
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method delete">DELETE</span>
+<span class="path">/resources/&lt;resource_id&gt;</span>
+</div>
+<p class="summary">Remove a resource from the map</p>
+</div>
+</section>
+<section class="section" id="terrain-management">
+<div class="section-header"><h2>Terrain Management</h2>
+<span class="prefix">/admin/terrain</span>
+<p class="desc">View and modify map terrain</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/terrain/&lt;q&gt;/&lt;r&gt;</span>
+</div>
+<p class="summary">Get terrain information for a specific tile</p>
+<div class="detail"><h4>Notes</h4><p class="note">q and r are URL path integers; 404 if the tile is off-map.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method patch">PATCH</span>
+<span class="path">/terrain/&lt;q&gt;/&lt;r&gt;</span>
+</div>
+<p class="summary">Modify terrain at a specific tile</p>
+<div class="detail"><h4>Request Body</h4><pre>elevation: integer (optional) - the game uses elevations 0-100
+terrain: integer (optional) - 1=normal, 2=difficult, 3=impassable (no other values accepted)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "elevation": 40,
+  "terrain": 3
+}</pre></div>
+<div class="detail"><h4>Errors</h4><pre>400: INVALID_TERRAIN (terrain not in 1/2/3)
+404: TILE_NOT_FOUND
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method patch">PATCH</span>
+<span class="path">/terrain/bulk</span>
+</div>
+<p class="summary">Modify terrain for multiple tiles at once</p>
+<div class="detail"><h4>Request Body</h4><pre>tiles: array of objects (required, non-empty) - each: {q: integer (required), r: integer (required), terrain: integer 1/2/3 (optional), elevation: integer (optional)}
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "tiles": [
+    {
+      "elevation": 50,
+      "q": 10,
+      "r": 10,
+      "terrain": 3
+    },
+    {
+      "q": 11,
+      "r": 10,
+      "terrain": 2
+    }
+  ]
+}</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Terrain values: 1=normal, 2=difficult, 3=impassable. Off-map tiles in the array are skipped; the response reports modified_count.</p></div>
+</div>
+</section>
+<section class="section" id="user-admin-management">
+<div class="section-header"><h2>User &amp; Admin Management</h2>
+<span class="prefix">/admin/users</span>
+<p class="desc">Manage registered users, credentials, and admin status</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/users</span>
+</div>
+<p class="summary">Get all registered users with admin status</p>
+<div class="detail"><h4>Response</h4><pre>count: integer
+users: [{username, user_id, is_admin, name?, team?}]
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/users</span>
+</div>
+<p class="summary">Create a new user (admin bypass - no team registration code required)</p>
+<div class="detail"><h4>Request Body</h4><pre>is_admin: boolean (optional, default false)
+name: string (required) - display name, 1-64 characters, not blank
+password: string (required) - 6-128 characters
+team: integer (required) - 0-16; team 0 is for admin accounts and gets no base/drones/buildings
+username: string (required) - 3-64 characters; letters, numbers, underscores, hyphens, and periods only; must be unique
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "name": "Player Three",
+  "password": "secret123",
+  "team": 3,
+  "username": "player3"
+}</pre></div>
+<div class="detail"><h4>Errors</h4><pre>400: MISSING_FIELDS / INVALID_FIELDS / INVALID_USERNAME / INVALID_PASSWORD / INPUT_TOO_LONG
+400: REGISTRATION_FAILED (username exists)
+500: SETUP_FAILED (engine unavailable)
+</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Non-admin users (team 1-16) are provisioned with a base, starter buildings, and 2 starter drones, same as normal registration.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method patch">PATCH</span>
+<span class="path">/users/&lt;user_id&gt;</span>
+</div>
+<p class="summary">Edit a user's name, team, and/or admin status</p>
+<div class="detail"><h4>Request Body</h4><pre>is_admin: boolean (optional)
+name: string (optional) - non-empty, max 64 characters
+team: integer (optional) - 0-16
+</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">At least one field is required.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method delete">DELETE</span>
+<span class="path">/users/&lt;user_id&gt;</span>
+</div>
+<p class="summary">Delete a user and cascade-remove all their game assets</p>
+<div class="detail"><h4>Errors</h4><pre>400: CANNOT_DELETE_SELF
+404: DELETE_FAILED
+</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Cannot delete your own account. Response reports drones_deleted, buildings_deleted, and bases_unassigned.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method put">PUT</span>
+<span class="path">/users/&lt;user_id&gt;/admin</span>
+</div>
+<p class="summary">Set or revoke admin status for a user</p>
+<div class="detail"><h4>Request Body</h4><pre>is_admin: boolean (required)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "is_admin": true
+}</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method put">PUT</span>
+<span class="path">/users/&lt;user_id&gt;/password</span>
+</div>
+<p class="summary">Reset a user's password</p>
+<div class="detail"><h4>Request Body</h4><pre>new_password: string (required) - 6-128 characters
+</pre></div>
+<div class="detail"><h4>Errors</h4><pre>400: MISSING_FIELDS / INVALID_PASSWORD / INPUT_TOO_LONG
+404: USER_NOT_FOUND
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/users/&lt;user_id&gt;/score</span>
+</div>
+<p class="summary">Apply a score adjustment (penalty or bonus) to a user</p>
+<div class="detail"><h4>Request Body</h4><pre>delta: integer (required) - points to add (negative = penalty)
+reason: string (optional, max 500 chars) - shown to the player and security-logged
+</pre></div>
+<div class="detail"><h4>Response</h4><pre>delta: integer
+new_score: integer
+user_id: string
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "delta": -200,
+  "reason": "Friendly-fire griefing (ruling #4)"
+}</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">The player receives a score_update message with the delta and reason.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/users/&lt;user_id&gt;/suspend</span>
+</div>
+<p class="summary">Suspend a user: blocks logins, revokes all sessions; game assets are kept</p>
+<div class="detail"><h4>Request Body</h4><pre></pre></div>
+<div class="detail"><h4>Response</h4><pre>tokens_revoked: integer
+user_id: string
+</pre></div>
+<div class="detail"><h4>Errors</h4><pre>400: CANNOT_SUSPEND_SELF
+404: USER_NOT_FOUND
+</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Softer than DELETE - the account and its base/drones remain; lift with DELETE /users/&lt;user_id&gt;/suspend.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method delete">DELETE</span>
+<span class="path">/users/&lt;user_id&gt;/suspend</span>
+</div>
+<p class="summary">Lift a user's suspension so they can log in again</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method delete">DELETE</span>
+<span class="path">/users/&lt;user_id&gt;/tokens</span>
+</div>
+<p class="summary">Revoke all of a user's active session tokens (they must log in again)</p>
+<div class="detail"><h4>Response</h4><pre>tokens_revoked: integer
+user_id: string
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/users/&lt;user_id&gt;/queue</span>
+</div>
+<p class="summary">View a user's queued drone and building actions (support/debugging)</p>
+<div class="detail"><h4>Response</h4><pre>building_actions: [array of queued action objects]
+drone_actions: [array of queued action objects]
+user_id: string
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method delete">DELETE</span>
+<span class="path">/users/&lt;user_id&gt;/mfa</span>
+</div>
+<p class="summary">Disable MFA for a user (account recovery)</p>
+<div class="detail"><h4>Errors</h4><pre>404: USER_NOT_FOUND
+</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">No request body.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/users/setup-all</span>
+</div>
+<p class="summary">Assign bases and create starter buildings/drones for all registered users that lack them</p>
+<div class="detail"><h4>Notes</h4><p class="note">No request body. Skips admin (team 0) users and users that already have a base.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method delete">DELETE</span>
+<span class="path">/rate-limits</span>
+</div>
+<p class="summary">Clear login/register/MFA rate-limit state</p>
+<div class="detail"><h4>Request Body</h4><pre>ip: string (optional) - a client IP address; omit to clear rate limits for all IPs
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "ip": "203.0.113.7"
+}</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/registration-codes</span>
+</div>
+<p class="summary">Get current team registration codes, the automation service token, and the admin registration code</p>
+<div class="detail"><h4>Response</h4><pre>admin_registration_code: string
+admin_token: string
+teams: {code: team_number}
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method put">PUT</span>
+<span class="path">/registration-codes</span>
+</div>
+<p class="summary">Update team registration codes, the automation service token, and/or the admin registration code</p>
+<div class="detail"><h4>Request Body</h4><pre>admin_registration_code: string (optional) - code that registers admin accounts, at least 8 characters
+admin_token: string (optional) - service token for headless automation (e.g. the fleet CLI); admins authenticate with their own Bearer token, not this. At least 8 characters
+teams: object (optional) - maps registration code strings to team numbers (integers 1-16); replaces the whole mapping
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "teams": {
+    "NEW_CODE_A": 1,
+    "NEW_CODE_B": 2
+  }
+}</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/registration-codes/regenerate</span>
+</div>
+<p class="summary">Regenerate random registration codes and tokens</p>
+<div class="detail"><h4>Request Body</h4><pre>admin_registration_code: boolean (optional) - rotate the admin registration code
+admin_token: boolean (optional) - rotate the automation service token
+teams: boolean (optional) - rotate all team codes
+</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Invalidates the previous values immediately. A missing admin_registration_code is always backfilled (legacy files).</p></div>
+</div>
+</section>
+<section class="section" id="engine-control">
+<div class="section-header"><h2>Engine Control</h2>
+<span class="prefix">/admin/engine</span>
+<p class="desc">Monitor the game engine and adjust its cycle time</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/engine/status</span>
+</div>
+<p class="summary">Get game engine status</p>
+<div class="detail"><h4>Response</h4><pre>building_action_queue_size: integer
+building_count: integer
+cycle_count: integer
+cycle_time: float
+drone_count: integer
+last_error_cycle: integer - cycle of the most recent error (0 = none)
+match_state: string - active | frozen | ended
+paused: boolean
+running: boolean
+snapshot_cycle: integer - cycle of the last crash-recovery snapshot
+snapshot_time: float - unix timestamp of the last snapshot (alert if stale)
+total_errors: integer - engine cycle errors since boot
+user_count: integer
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/engine/cycle-time</span>
+</div>
+<p class="summary">Set the engine cycle time in seconds (0.0001 to 10)</p>
+<div class="detail"><h4>Request Body</h4><pre>cycle_time: float (required)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "cycle_time": 0.25
+}</pre></div>
+</div>
+</section>
+<section class="section" id="game-match-control">
+<div class="section-header"><h2>Game &amp; Match Control</h2>
+<span class="prefix">/admin</span>
+<p class="desc">Reset the game, freeze/end the match, and make announcements</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/game/reset</span>
+</div>
+<p class="summary">Reset the game to its starting state (WARNING: destroys all progress!)</p>
+<div class="detail"><h4>Request Body</h4><pre>difficult_ratio: float (optional, default 0.20) - 0.0 to 1.0
+impassable_ratio: float (optional, default 0.15) - 0.0 to 1.0
+resource_count: integer (optional, &gt;= 0) - resource nodes to place; defaults to the map scaling config for the current team count
+seed: integer (optional) - random seed for reproducible map generation
+</pre></div>
+<div class="detail"><h4>Response</h4><pre>bases_created: integer
+height: integer
+message: string
+players_provisioned: integer
+provisioned_user_ids: array of user IDs
+provisioning_errors: array
+resource_count: integer
+width: integer
+</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Regenerates the map, zeroes all scores/stats/team upgrades, clears action queues and message inboxes, then reprovisions every registered player with their starting base, buildings, and 2 starter drones. User accounts and auth tokens are preserved. Also returns an ended/frozen match to active.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/match/freeze</span>
+</div>
+<p class="summary">Freeze the match: all player actions are rejected (HTTP 423) until unfreeze</p>
+<div class="detail"><h4>Request Body</h4><pre>reason: string (optional) - included in the notice players receive
+</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Enforced at the API layer; the engine keeps cycling (in-flight projectiles land, timers run). Every player gets an announcement message, and match_state appears as 'frozen' in GET /game/status.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/match/unfreeze</span>
+</div>
+<p class="summary">Resume a frozen match</p>
+<div class="detail"><h4>Errors</h4><pre>400: MATCH_STATE_FAILED (match is not frozen)
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/match/end</span>
+</div>
+<p class="summary">End the match permanently - actions stay disabled until a game reset</p>
+<div class="detail"><h4>Request Body</h4><pre>reason: string (optional)
+</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Terminal state: only POST /game/reset returns the server to active play.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/broadcast</span>
+</div>
+<p class="summary">Send an announcement message to every registered player</p>
+<div class="detail"><h4>Request Body</h4><pre>message: string (required, max 2000 chars)
+subject: string (optional, max 200 chars, default 'Announcement')
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "message": "Match starts in 5 minutes - good luck!"
+}</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Delivered through the normal message system: players see it via message polling and WebSocket.</p></div>
+</div>
+</section>
+<section class="section" id="upgrades">
+<div class="section-header"><h2>Upgrades</h2>
+<span class="prefix">/admin/upgrades</span>
+<p class="desc">Manage team upgrades directly</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/upgrades</span>
+</div>
+<p class="summary">Get all team upgrades</p>
+<div class="detail"><h4>Response</h4><pre>team_upgrades: {team_id: {equipment_type: level}}
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/upgrades</span>
+</div>
+<p class="summary">Set a team's upgrade level directly (for testing)</p>
+<div class="detail"><h4>Request Body</h4><pre>equipment_type: string (required) - an upgrade key from config/upgrades.json: drill, sensors, battery, portable_charger, reactive_armour, hopper, mobile_repair_kit, shield_generator, laser_cannon, propulsion, hover_tech, targeting_computer, wire_guided_missile, auto_cannon, ammunition, canister_round, df_antenna, jammer, land_mine, decoy_beacon, signature_dampener, smoke_launcher, point_defense, seismic_sensor, antenna, repeater, howitzer, howitzer_shells, howitzer_charges, baseline_drone, or an unlock tech (unlock_reactive_armour, unlock_hover_tech, unlock_wire_guided_missile, unlock_auto_cannon, unlock_signature_dampener, unlock_decoy_beacon, unlock_smoke_launcher, unlock_point_defense, unlock_land_mine, unlock_shield_generator, unlock_targeting_computer, unlock_df_antenna, unlock_jammer, unlock_seismic_sensor, unlock_howitzer, unlock_antenna, unlock_repeater)
+level: integer (required, &gt;= 1) - equipment upgrades have tiers 1-3; unlock techs use level 1
+team: string (required) - team number as a string, e.g. "1" (integers are rejected)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "equipment_type": "drill",
+  "level": 2,
+  "team": "1"
+}</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Upgrades are cumulative and apply retroactively to existing drones/equipment on the team, same as researched upgrades.</p></div>
+</div>
+</section>
+<section class="section" id="tiles">
+<div class="section-header"><h2>Tiles</h2>
+<span class="prefix">/admin/tiles</span>
+<p class="desc">Direct tile manipulation</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/tiles/&lt;q&gt;/&lt;r&gt;/ore</span>
+</div>
+<p class="summary">Set ore on a specific tile (for testing mining)</p>
+<div class="detail"><h4>Request Body</h4><pre>amount: integer (optional, default 100) - units of ore
+ore_type: string (optional) - use one of the real ore types: titanium_ore, rare_earth_ore, unobtanium_ore (the legacy default 'iron' is accepted but cannot be refined)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "amount": 500,
+  "ore_type": "titanium_ore"
+}</pre></div>
+<div class="detail"><h4>Errors</h4><pre>404: TILE_NOT_FOUND
+</pre></div>
+</div>
+</section>
+<section class="section" id="game-state-diagnostics">
+<div class="section-header"><h2>Game State &amp; Diagnostics</h2>
+<span class="prefix">/admin</span>
+<p class="desc">Debug and support endpoints</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/state</span>
+</div>
+<p class="summary">Get full game state for debugging</p>
+<div class="detail"><h4>Response</h4><pre>buildings: {building_id: building_object}
+cycle: integer
+drones: {drone_id: drone_object}
+resources: {resource_id: resource_object}
+team_upgrades: {team_id: upgrades}
+users: {user_id: user_object}
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/dlq</span>
+</div>
+<p class="summary">Inspect the dead-letter queue of malformed actions</p>
+<div class="detail"><h4>Query Parameters</h4><pre>count: integer (optional, default 50, max 500) - newest entries to return
+</pre></div>
+<div class="detail"><h4>Response</h4><pre>entries: [array]
+returned: integer
+total: integer
+</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Entries here usually mean a team's bot is sending malformed action JSON.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method delete">DELETE</span>
+<span class="path">/dlq</span>
+</div>
+<p class="summary">Clear the dead-letter queue</p>
+<div class="detail"><h4>Response</h4><pre>cleared: integer
+</pre></div>
+</div>
+</section>
+<section class="section" id="status-codes"><div class="section-header"><h2>HTTP Status Codes</h2></div>
+<div style="padding:24px"><table><thead><tr><th>Code</th><th>Description</th></tr></thead><tbody>
+<tr><td>200</td><td>Success</td></tr>
+<tr><td>201</td><td>Resource created successfully</td></tr>
+<tr><td>400</td><td>Bad request / Missing fields</td></tr>
+<tr><td>401</td><td>Unauthorized (missing or invalid admin token)</td></tr>
+<tr><td>403</td><td>Forbidden (user is not an admin)</td></tr>
+<tr><td>404</td><td>Resource not found</td></tr>
+<tr><td>500</td><td>Internal server error</td></tr>
+</tbody></table></div></section>
+<section class="section" id="error-format"><div class="section-header"><h2>Error Response Format</h2>
+<p class="desc">Error responses follow this format</p>
+</div>
+<div style="padding:24px"><div class="detail"><h4>Example</h4><pre>{
+  "error": {
+    "code": "BUILDING_NOT_FOUND",
+    "details": {
+      "building_id": "abc123"
+    },
+    "message": "Building not found"
+  }
+}</pre></div></div>
+</section>
+<footer><p>Drone Battles &mdash; API Documentation</p></footer>
+</div>
+</body>
+</html>

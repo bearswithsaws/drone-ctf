@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drone Battles API - API Documentation</title>
+<style>
+:root{--primary:#006AFF;--primary-light:#E8F0FE;--bg:#ffffff;--bg-subtle:#f5f7fa;--bg-muted:#edf0f5;--text:#1a1a2e;--text-sec:#5a6178;--text-muted:#8b92a8;--border:#e2e6ef;--ok:#0fa958;--ok-light:#eaf7ef;--warn:#2563eb;--warn-light:#dbeafe;--err:#e5393d;--err-light:#fdeaea;--get:#006AFF;--get-bg:#E8F0FE;--post:#0fa958;--post-bg:#eaf7ef;--del:#e5393d;--del-bg:#fdeaea;--shadow:0 1px 3px rgba(0,0,0,0.06);--radius:12px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg-subtle);color:var(--text);line-height:1.6;padding:24px}
+.container{max-width:1200px;margin:0 auto}
+header{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:32px;margin-bottom:24px;box-shadow:var(--shadow)}
+header h1{font-size:2em;font-weight:800;margin-bottom:8px}
+header .version{color:var(--primary);font-size:1em;font-weight:600}
+header .desc{color:var(--text-sec);margin-top:8px}
+header code{background:var(--bg-muted);padding:2px 8px;border-radius:5px;font-family:"Consolas",monospace;font-size:0.88em;color:var(--primary)}
+.auth-info{background:var(--bg);border:1px solid var(--border);border-left:4px solid var(--warn);padding:20px 24px;margin-bottom:24px;border-radius:0 var(--radius) var(--radius) 0;box-shadow:var(--shadow)}
+.auth-info h3{color:var(--warn);margin-bottom:8px;font-weight:700}
+.auth-info p{color:var(--text-sec);font-size:0.92em}
+.auth-info code{background:var(--bg-muted);padding:3px 8px;border-radius:5px;font-family:"Consolas",monospace;font-size:0.88em}
+.section{background:var(--bg);border-radius:var(--radius);margin-bottom:24px;overflow:hidden;border:1px solid var(--border);box-shadow:var(--shadow)}
+.section-header{background:var(--bg-subtle);padding:20px 24px;border-bottom:1px solid var(--border)}
+.section-header h2{margin-bottom:4px;font-size:1.3em}
+.section-header .prefix{color:var(--primary);font-family:"Consolas",monospace;font-size:0.88em}
+.section-header .desc{color:var(--text-sec);margin-top:6px;font-size:0.92em}
+.cat-header{background:var(--bg-muted);padding:12px 24px;border-bottom:1px solid var(--border);border-top:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.cat-header h3{font-size:0.95em;font-weight:700;color:var(--primary);margin:0}
+.cat-header .count{font-size:0.75em;color:var(--text-muted);background:var(--bg);padding:2px 8px;border-radius:10px;border:1px solid var(--border)}
+.endpoint{border-bottom:1px solid var(--border);padding:24px}
+.endpoint:last-child{border-bottom:none}
+.ep-header{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.method{padding:5px 12px;border-radius:6px;font-weight:700;font-size:0.78em;text-transform:uppercase;min-width:64px;text-align:center;letter-spacing:0.03em}
+.method.get{background:var(--get-bg);color:var(--get)}.method.post{background:var(--post-bg);color:var(--post)}.method.delete{background:var(--del-bg);color:var(--del)}
+.path{font-family:"Consolas",monospace;font-size:0.95em;font-weight:500}
+.auth-badge{padding:3px 10px;border-radius:6px;font-size:0.72em;text-transform:uppercase;font-weight:700;letter-spacing:0.04em}
+.auth-badge.required{background:var(--err-light);color:var(--err)}
+.auth-badge.optional{background:var(--bg-muted);color:var(--text-muted)}
+.summary{color:var(--text-sec);margin-bottom:14px;font-size:0.92em}
+.detail{background:var(--bg-subtle);padding:16px;border-radius:8px;border:1px solid var(--border);margin-bottom:12px}
+.detail h4{color:var(--primary);margin-bottom:10px;font-size:0.8em;text-transform:uppercase;letter-spacing:0.05em;font-weight:700}
+.detail pre{background:transparent;margin:0;white-space:pre-wrap;font-family:"Consolas",monospace;font-size:0.85em;color:var(--text-sec)}
+.detail .note{color:var(--warn);font-style:italic;margin-top:10px;font-size:0.9em}
+.detail ul{list-style:none;padding:0}
+.detail li{color:var(--err);margin:4px 0;font-size:0.9em}
+table{width:100%;border-collapse:collapse;font-size:0.92em}
+th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--border)}
+th{background:var(--bg-subtle);font-weight:600;font-size:0.85em;text-transform:uppercase;letter-spacing:0.03em}
+td:first-child{font-family:"Consolas",monospace;color:var(--primary);font-weight:700}
+td{color:var(--text-sec)}
+footer{text-align:center;padding:32px 24px;color:var(--text-muted);font-size:0.85em}
+@media print{body{padding:0}.section{break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+<h1>Drone Battles API</h1>
+<span class="version">Version 1.0</span>
+<p class="desc">REST API for controlling drones and buildings in Drone Battles. IMPORTANT: All coordinates use the acting drone as the origin (0, 0). Both action requests (fire, identify, mark, scan, etc.) and response data (scan results, action completion messages) use relative coordinates.</p>
+<p style="margin-top:10px;color:var(--primary);font-weight:600;font-size:0.92em">Base URL: <code>/api/v1</code></p>
+</header>
+<div class="auth-info"><h3>Authentication</h3>
+<p><strong>Type:</strong> Bearer Token</p>
+<p>All endpoints (except /auth/register and /auth/login) require authentication. Include the token in the Authorization header.</p>
+<p style="margin-top:10px"><code>Authorization: Bearer &lt;token&gt;</code></p>
+</div>
+<section class="section" id="authentication">
+<div class="section-header"><h2>Authentication</h2>
+<span class="prefix">/auth</span>
+<p class="desc">User registration, login, and session management</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/auth/register</span>
+<span class="auth-badge optional">Public</span>
+</div>
+<p class="summary">Register a new account (player or admin, depending on the code)</p>
+<div class="detail"><h4>Request Body</h4><pre>name: string (required)
+password: string (required, min 6 chars)
+registration_code: string (required) - a team code registers a player on that team; the admin REGISTRATION code (separate from the admin API token) registers an administrator account. Team codes are single-use: one account per code (teammates share that account). Deleting the account frees its code; the admin registration code is not single-use.
+username: string (required, min 3 chars)
+</pre></div>
+<div class="detail"><h4>Response</h4><pre>message: string
+team: integer
+user_id: string
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "name": "Commander Alpha",
+  "password": "secretpass123",
+  "registration_code": "your-team-secret-code",
+  "username": "player1"
+}</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Creates a new user with a command center, starter buildings, and 2 starter drones with mining equipment. Each registration_code is tied to a specific team.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/auth/login</span>
+<span class="auth-badge optional">Public</span>
+</div>
+<p class="summary">Login and get access token</p>
+<div class="detail"><h4>Request Body</h4><pre>password: string (required)
+username: string (required)
+</pre></div>
+<div class="detail"><h4>Response</h4><pre>registration_codes: object (admin users only) - {admin_token, admin_registration_code, teams: {code: team_number}} so admins can hand out codes straight from login
+token: string
+user_id: string
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "password": "secretpass123",
+  "username": "player1"
+}</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">If MFA is enabled the response is {mfa_required: true, mfa_token} instead; complete with POST /auth/login/mfa, whose response has the same shape as a normal login.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/auth/logout</span>
+</div>
+<p class="summary">Logout and invalidate token</p>
+<div class="detail"><h4>Response</h4><pre>message: string
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/auth/me</span>
+</div>
+<p class="summary">Get current user info</p>
+<div class="detail"><h4>Response</h4><pre>building_count: integer
+drone_count: integer
+name: string
+score: integer
+team: integer
+user_id: string
+username: string
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/auth/scoreboard</span>
+<span class="auth-badge optional">Public</span>
+</div>
+<p class="summary">Get the current scoreboard (public, no auth required)</p>
+<div class="detail"><h4>Response</h4><pre>scoreboard: [array of {name, user_id, team, score}]
+team_scores: {team_number: total_score}
+</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Returns all players sorted by score, plus aggregate team scores. Team 0 (admins) is excluded from team_scores.</p></div>
+</div>
+</section>
+<section class="section" id="game">
+<div class="section-header"><h2>Game</h2>
+<span class="prefix">/game</span>
+<p class="desc">Game-wide information (fog-of-war safe)</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/game/status</span>
+</div>
+<p class="summary">Get the game clock: engine running state, current cycle, and cycle time</p>
+<div class="detail"><h4>Response</h4><pre>cycle_count: integer - current engine cycle
+cycle_time: float - seconds per cycle
+last_update: float - unix timestamp of the engine's last status write
+match_state: string - active | frozen | ended; actions are rejected with HTTP 423 while frozen/ended
+paused: boolean
+running: boolean
+</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Use this to pace polling and time multi-cycle actions instead of reading the engine_status piggybacked on GET /drones.</p></div>
+</div>
+</section>
+<section class="section" id="drones">
+<div class="section-header"><h2>Drones</h2>
+<span class="prefix">/drones</span>
+<p class="desc">Drone listing and information</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/drones</span>
+</div>
+<p class="summary">List drone IDs owned by current user (POST /drones/&lt;drone_id&gt;/status to queue a status report)</p>
+<div class="detail"><h4>Response</h4><pre>drone_ids: [array of drone ID strings]
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/status</span>
+</div>
+<p class="summary">Queue a status action (1 battery, 1 cycle)</p>
+<div class="detail"><h4>Request Body</h4><pre></pre></div>
+<div class="detail"><h4>Response</h4><pre>action_id: string
+message: status action queued successfully
+</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Status information is returned via message queue when action completes. Costs 1 battery and takes 1 cycle.</p></div>
+</div>
+</section>
+<section class="section" id="drone-actions">
+<div class="section-header"><h2>Drone Actions</h2>
+<span class="prefix">/drones/&lt;drone_id&gt;/&lt;equipment&gt;</span>
+<p class="desc">Queue actions for drones. All actions return action_id on success.</p>
+</div>
+<div class="cat-header"><h3>Ammunition</h3><span class="count">1 endpoint</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/ammo/transfer</span>
+</div>
+<p class="summary">Transfer ammunition to adjacent friendly drone</p>
+<div class="detail"><h4>Request Body</h4><pre>equipment_id: string
+level: int (1-3)
+target_q: int (relative)
+target_r: int (relative)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "equipment_id": "uuid",
+  "level": 2,
+  "target_q": 1,
+  "target_r": 0
+}</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Transfers ammunition, howitzer shells, or howitzer charges to a friendly drone on an adjacent tile. The equipment moves with its current state (remaining rounds/charges). L1: 15 cycles, 1 batt/cycle. L2: 10 cycles, 2 batt/cycle. L3: 5 cycles, 6 batt/cycle. Target must be adjacent and on same team.</p></div>
+</div>
+<div class="cat-header"><h3>Auto-Cannon</h3><span class="count">3 endpoints</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/auto_cannon/fire</span>
+</div>
+<p class="summary">Fire an auto-cannon round at target coordinates or in a direction</p>
+<div class="detail"><h4>Request Body</h4><pre>direction: integer (0-5) - fire in a hex direction instead of at coordinates (required if no target_q/target_r)
+level: integer (1-3)
+target_q: integer - relative Q offset from drone (required if no direction)
+target_r: integer - relative R offset from drone (required if no direction)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "level": 2,
+  "target_q": 3,
+  "target_r": 0
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Auto-Cannon equipment + Ammunition (loaded via autocannon_load)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Accepts EITHER (target_q, target_r) as relative coordinates OR a direction (0-5), not both. Direction mode fires along the hex direction (0=NE, 1=SE, 2=S, 3=SW, 4=NW, 5=N) to max range. Fires a projectile round that travels tile-by-tile along a hex line path. Accuracy starts at 75% at close range and falls to 20% at max range (capped at 95% with bonuses). AP rounds (50 dmg) ignore armour and disappear at max range on a miss. HE rounds (30 dmg + 15 splash) always explode at max range even on a miss, dealing splash to adjacent tiles. Canister rounds fire an instant cone of flechettes (range 3, 5 dmg/tile). Requires line of sight (except canister, which handles its own blocking). Min range: 2 tiles. 10-cycle cooldown between shots. All weapons receive +30% accuracy bonus against LUCAS drones.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/auto_cannon/load</span>
+</div>
+<p class="summary">Load ammunition into auto-cannon</p>
+<div class="detail"><h4>Request Body</h4><pre>ammo_type: string (armour_piercing, high_explosive, or canister_round)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "ammo_type": "armour_piercing"
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Auto-Cannon equipment + Ammunition equipment</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Takes 20 cycles to complete. The cannon must be loaded before it can fire. When a loaded ammo pack empties, another must be loaded. Valid ammo types: armour_piercing, high_explosive, canister_round. Canister rounds fire an instant cone of flechettes (range 3) along the line from drone to target.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/auto_cannon/unload</span>
+</div>
+<p class="summary">Unload ammunition from auto-cannon</p>
+<div class="detail"><h4>Request Body</h4><pre></pre></div>
+<div class="detail"><h4>Example</h4><pre>{}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Auto-Cannon equipment with loaded ammunition</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Takes 10 cycles to complete. Unloads the currently loaded ammunition pack from the cannon. The ammunition must be unloaded before it can be transferred to another drone via ammo transfer.</p></div>
+</div>
+<div class="cat-header"><h3>Decoy Beacon</h3><span class="count">1 endpoint</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/decoy_beacon/deploy</span>
+</div>
+<p class="summary">Deploy a decoy drone on an adjacent tile</p>
+<div class="detail"><h4>Request Body</h4><pre>direction: integer (0-5, optional, default 0) - hex direction for target adjacent tile
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "direction": 2
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Decoy Beacon equipment (unlock_decoy_beacon research completed, decoys remaining)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Deploys a decoy drone on an adjacent tile. The decoy appears on scans and DF as a real drone but has no equipment and minimal HP. Consumable — equipment is removed when all decoys are deployed. Deploy cycles and battery cost vary by level.</p></div>
+</div>
+<div class="cat-header"><h3>DF Antenna</h3><span class="count">5 endpoints</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/df_antenna/deploy</span>
+</div>
+<p class="summary">Deploy the DF antenna (prevents movement)</p>
+<div class="detail"><h4>Requires</h4><pre>DF Antenna equipment</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Takes 10 cycles. Drone cannot turn, drive, or hover while deployed. Must stow before moving again.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/df_antenna/stow</span>
+</div>
+<p class="summary">Stow the DF antenna (re-enables movement)</p>
+<div class="detail"><h4>Requires</h4><pre>DF Antenna equipment (deployed, antenna at height 0)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Takes 10 cycles. Antenna must be lowered to height 0 before stowing.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/df_antenna/raise</span>
+</div>
+<p class="summary">Raise the DF antenna mast</p>
+<div class="detail"><h4>Request Body</h4><pre>target_height: integer (optional) - target antenna height (default: current + 5, max 20)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "target_height": 10
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>DF Antenna equipment (deployed)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">20 cycles per 5 units of height. Does NOT change drone elevation. Maximum antenna height is 20.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/df_antenna/lower</span>
+</div>
+<p class="summary">Lower the DF antenna mast</p>
+<div class="detail"><h4>Request Body</h4><pre>target_height: integer (optional) - target antenna height (default: current - 5, min 0)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "target_height": 0
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>DF Antenna equipment (deployed, height &gt; 0)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">20 cycles per 5 units of height. Must lower to 0 before stowing.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/df_antenna/configure</span>
+</div>
+<p class="summary">Configure DF antenna cone direction and width for passive EM detection</p>
+<div class="detail"><h4>Request Body</h4><pre>cone_width: integer (0-4, required) - 0=narrow line (±10°), 1=±30°, 2=±60°, 3=±120°, 4=360°
+direction: integer (0-5, required) - hex direction for cone center
+level: integer (1-3, optional) - detection sensitivity level
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "cone_width": 2,
+  "direction": 1,
+  "level": 2
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>DF Antenna equipment (deployed)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Takes 1 cycle. Sets cone direction and width for passive EM monitoring. Once configured with antenna raised, the DF antenna passively detects electromagnetic signatures from drone actions within its cone each cycle. Detections are delivered as 'EM detection' messages with an 8-bin frequency spectrum and bearing direction. Levels: L1=30 range/threshold 3.0, L2=50 range/threshold 2.0, L3=75 range/threshold 1.0. LOS is checked at antenna height. Signature dampeners reduce detected signal strength. EM/DF antennas are LONG range (0-49 tiles at T0) — the primary strategic intelligence tool. Uses inverse square law decay: 1/(1 + d^2 * rate) with frequency-dependent attenuation (EM freq attenuation rate: 0.006). Higher frequencies fade faster at distance. Example T0 detection ranges: idle/deploy=0, driving=11, hovering=19, repair/charging=24-27, shield_gen=31, laser/mark=35, autocannon/missile=33-36, identify=38, scan/howitzer_fire=41, jammer=45, howitzer_aim/LUCAS_engine=49 tiles.</p></div>
+</div>
+<div class="cat-header"><h3>Drill</h3><span class="count">1 endpoint</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/drill/mine</span>
+</div>
+<p class="summary">Mine resources from adjacent tile</p>
+<div class="detail"><h4>Request Body</h4><pre>level: integer (1-3)
+resource_q: integer (required)
+resource_r: integer (required)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "level": 2,
+  "resource_q": 15,
+  "resource_r": 22
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Drill and Hopper equipment</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Takes 10 cycles. Mines ore from an adjacent resource node into the drone's hopper.</p></div>
+</div>
+<div class="cat-header"><h3>Hopper</h3><span class="count">1 endpoint</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/hopper/dump</span>
+</div>
+<p class="summary">Discard resources from drone's hopper</p>
+<div class="detail"><h4>Request Body</h4><pre>amount: integer (optional) - amount to dump
+resource_type: string (optional) - specific resource to dump
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "amount": 10,
+  "resource_type": "titanium_ore"
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Hopper equipment with cargo</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Takes 1 cycle, costs 0 battery. If resource_type and amount are omitted, dumps all resources. If only resource_type is specified, dumps all of that type.</p></div>
+</div>
+<div class="cat-header"><h3>Hover Tech</h3><span class="count">2 endpoints</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/hover_tech/ascend</span>
+</div>
+<p class="summary">Increase drone elevation</p>
+<div class="detail"><h4>Request Body</h4><pre>level: integer (1-3)
+target_elevation: integer (required)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "level": 2,
+  "target_elevation": 50
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Hover Tech equipment</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Elevation change per action must be 1-5. If the drone's elevation changed between queue and execution (e.g. from a prior queued action), the action will fail with 'Invalid elevation change'. WARNING: Drones at elevation &gt; 0 drain battery each cycle to maintain hover. Drain scales with elevation and drone weight. If battery reaches 0, drone crashes and takes fall damage.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/hover_tech/descend</span>
+</div>
+<p class="summary">Decrease drone elevation</p>
+<div class="detail"><h4>Request Body</h4><pre>level: integer (1-3)
+target_elevation: integer (required)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "level": 1,
+  "target_elevation": 0
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Hover Tech equipment</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Elevation change per action must be 1-5. If the drone's elevation changed between queue and execution (e.g. from a prior queued action), the action will fail with 'Invalid elevation change'. Descending to elevation 0 stops hover battery drain. Recommended when low on battery to avoid crash damage.</p></div>
+</div>
+<div class="cat-header"><h3>Howitzer</h3><span class="count">6 endpoints</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/howitzer/deploy</span>
+</div>
+<p class="summary">Deploy the howitzer for firing (prevents movement)</p>
+<div class="detail"><h4>Requires</h4><pre>Howitzer equipment (unlock_howitzer research completed, drone at elevation 0, not hovering)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Level-dependent: L1=8 cycles/1 batt/cycle, L2=5 cycles/2 batt/cycle, L3=3 cycles/3 batt/cycle. Drone cannot move, turn, hover, or take movement actions while deployed. Must stow before moving again. Cannot deploy while hovering. Cannot deploy inside a base (ground tiles are too hard to anchor the howitzer).</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/howitzer/stow</span>
+</div>
+<p class="summary">Stow the howitzer (re-enables movement)</p>
+<div class="detail"><h4>Requires</h4><pre>Howitzer equipment (deployed)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Level-dependent: L1=8 cycles/1 batt/cycle, L2=5 cycles/2 batt/cycle, L3=3 cycles/3 batt/cycle. Re-enables movement after completion.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/howitzer/load_shell</span>
+</div>
+<p class="summary">Load a howitzer shell into the breech</p>
+<div class="detail"><h4>Request Body</h4><pre>level: integer (1-3)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "level": 2
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Howitzer equipment (deployed) + Howitzer Shells equipment</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Consumes 1 shell from the Howitzer Shells equipment. Cycles: L1=8, L2=5, L3=3. Battery: L1=1/cycle, L2=2/cycle, L3=7/cycle.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/howitzer/load_charges</span>
+</div>
+<p class="summary">Load propellant charges to set range</p>
+<div class="detail"><h4>Request Body</h4><pre>charges: integer (1-3, required) - number of charges to load
+level: integer (1-3)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "charges": 2,
+  "level": 2
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Howitzer equipment (deployed, shell loaded) + Howitzer Charges equipment</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Each charge adds +8 to min and max range. 1 charge: min 8/max 16. 2 charges: min 16/max 24. 3 charges: min 24/max 32. Consumes charges from Howitzer Charges equipment. Cycles: L1=8, L2=5, L3=3. Battery: L1=1/cycle, L2=2/cycle, L3=7/cycle.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/howitzer/aim</span>
+</div>
+<p class="summary">Aim the howitzer at target coordinates</p>
+<div class="detail"><h4>Request Body</h4><pre>level: integer (1-3)
+target_q: integer (required) - relative Q offset from drone
+target_r: integer (required) - relative R offset from drone
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "level": 2,
+  "target_q": 15,
+  "target_r": -10
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Howitzer equipment (deployed, shell and charges loaded)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Aim speed: L1=2 cycles/tile, L2=1 cycle/tile, L3=1 cycle/tile. Battery: L1=1/cycle, L2=3/cycle, L3=8/cycle. Target must be within range determined by loaded charges. Coordinates are relative to drone position.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/howitzer/fire</span>
+</div>
+<p class="summary">Fire the howitzer at the aimed target</p>
+<div class="detail"><h4>Request Body</h4><pre>level: integer (1-3)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "level": 2
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Howitzer equipment (deployed, loaded, aimed)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Cycles: L1=8, L2=5, L3=3. Battery: L1=1/cycle, L2=2/cycle, L3=7/cycle. 10-cycle cooldown between shots. Accuracy: 30% direct hit, 30% scatter to adjacent tile, 30% scatter 2 tiles, 10% dud. Shell travels 2 tiles/cycle (8 tiles/second), ignores LOS (arcing). Damage: 100 direct, 50 splash ring 1, 25 splash ring 2. Buildings take 10% damage on direct hit only (no splash). Very loud seismic signature.</p></div>
+</div>
+<div class="cat-header"><h3>Jammer</h3><span class="count">6 endpoints</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/jammer/deploy</span>
+</div>
+<p class="summary">Deploy the signal jammer (prevents movement)</p>
+<div class="detail"><h4>Requires</h4><pre>Jammer equipment</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Takes 10 cycles. Drone must be at elevation 0. Cannot turn, drive, or hover while deployed.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/jammer/stow</span>
+</div>
+<p class="summary">Stow the signal jammer (re-enables movement)</p>
+<div class="detail"><h4>Requires</h4><pre>Jammer equipment (deployed, inactive, antenna at height 0)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Takes 10 cycles. Jammer must be deactivated and antenna lowered to 0 before stowing.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/jammer/raise</span>
+</div>
+<p class="summary">Raise the jammer antenna mast</p>
+<div class="detail"><h4>Request Body</h4><pre>target_height: integer (optional) - target antenna height (default: current + 5, max 20)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "target_height": 10
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Jammer equipment (deployed)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">20 cycles per 5 units of height. Maximum antenna height is 20.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/jammer/lower</span>
+</div>
+<p class="summary">Lower the jammer antenna mast</p>
+<div class="detail"><h4>Request Body</h4><pre>target_height: integer (optional) - target antenna height (default: current - 5, min 0)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "target_height": 0
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Jammer equipment (deployed, inactive, height &gt; 0)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">20 cycles per 5 units of height. Jammer must be deactivated before lowering. Must lower to 0 before stowing.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/jammer/activate</span>
+</div>
+<p class="summary">Activate the signal jammer beam</p>
+<div class="detail"><h4>Request Body</h4><pre>direction: integer (0-5, required) - hex direction for the jamming beam
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "direction": 1
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Jammer equipment (deployed, antenna raised, sufficient battery)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Takes 1 cycle. Projects a beam that jams ACTION_COMPLETED and WARNING messages for drones in its path. Drains battery each cycle while active. Levels: L1=15 range/3 battery, L2=25 range/8 battery, L3=40 range/15 battery. Affects both friendly and enemy drones (except the jammer drone itself).</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/jammer/deactivate</span>
+</div>
+<p class="summary">Deactivate the signal jammer</p>
+<div class="detail"><h4>Requires</h4><pre>Jammer equipment (active)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Takes 1 cycle. Stops jamming and battery drain.</p></div>
+</div>
+<div class="cat-header"><h3>Land Mine</h3><span class="count">1 endpoint</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/land_mine/deploy</span>
+</div>
+<p class="summary">Deploy a land mine at the drone's current tile</p>
+<div class="detail"><h4>Requires</h4><pre>Land Mine equipment (unlock_land_mine research completed, drone at elevation 0, mines remaining)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Deploys a mine on the drone's current tile. Mines are invisible to scan but visible to identify. Detonation triggers: ground-level drone movement (drive), hover descent to elevation 0, fall damage landing, weapon hits (laser, missile, auto-cannon). Mines deal full damage to the triggering drone and splash damage to adjacent tiles (if upgraded). Equipment is removed when all mines are depleted. Deploy cycles and battery cost vary by level (L1: 20 cycles/1 battery per cycle, L2: 15 cycles/3 battery, L3: 5 cycles/10 battery). Upgrades reduce deploy cycles and increase mine count.</p></div>
+</div>
+<div class="cat-header"><h3>Laser Cannon</h3><span class="count">1 endpoint</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/laser_cannon/fire</span>
+</div>
+<p class="summary">Fire laser cannon at target tile</p>
+<div class="detail"><h4>Request Body</h4><pre>level: integer (1-3)
+target_q: integer (required)
+target_r: integer (required)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "level": 3,
+  "target_q": 1,
+  "target_r": 0
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Laser Cannon equipment</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Targets relative coordinates (drone is at 0, 0). Engine auto-selects target: ground drones first, then elevated drones (by elevation), then buildings. Returns error if tile is empty. IMPORTANT: Lasers are top-mounted and cannot fire at targets below the attacker's height (terrain elevation + hover elevation).</p></div>
+</div>
+<div class="cat-header"><h3>Mobile Repair Kit</h3><span class="count">1 endpoint</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/mobile_repair_kit/repair</span>
+</div>
+<p class="summary">Repair health or equipment at target coordinates</p>
+<div class="detail"><h4>Request Body</h4><pre>equipment_id: string - full UUID (required if repair_type is 'equipment')
+level: integer (1-3)
+repair_type: string ('health' or 'equipment', defaults to 'health')
+target_q: integer (required)
+target_r: integer (required)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "level": 2,
+  "target_q": 10,
+  "target_r": 20
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Mobile Repair Kit equipment</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Auto-targets at coordinates. For health: priority is ground drones, elevated drones, then buildings. For equipment: specify the full equipment_id UUID from the drone's equipment list. Equipment repair durability: L1=25, L2=50, L3=75.</p></div>
+</div>
+<div class="cat-header"><h3>Point Defense</h3><span class="count">1 endpoint</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/point_defense/activate</span>
+</div>
+<p class="summary">Activate point defense system for missile interception</p>
+<div class="detail"><h4>Requires</h4><pre>Point Defense equipment (unlock_point_defense research completed)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Activates the PDS for the specified number of cycles (default 1), during which it intercepts incoming enemy missiles within range. Request body: {"cycles": int (optional, default 1)}. Interception chance: 30% per missile. Levels affect range and battery cost (L1: range 1/5 batt activate/30 per intercept, L2: range 2/10/25, L3: range 3/30/20).</p></div>
+</div>
+<div class="cat-header"><h3>Portable Charger</h3><span class="count">1 endpoint</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/portable_charger/charge</span>
+</div>
+<p class="summary">Transfer battery to drone at target coordinates</p>
+<div class="detail"><h4>Request Body</h4><pre>level: integer (1-3)
+target_q: integer (required)
+target_r: integer (required)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "level": 1,
+  "target_q": 10,
+  "target_r": 20
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Portable Charger equipment</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Auto-targets drone at coordinates. Ground-level drones prioritized over elevated.</p></div>
+</div>
+<div class="cat-header"><h3>Propulsion</h3><span class="count">2 endpoints</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/propulsion/turn</span>
+</div>
+<p class="summary">Rotate drone left or right</p>
+<div class="detail"><h4>Request Body</h4><pre>direction: integer (1=clockwise, -1=counter-clockwise)
+level: integer (1-3)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "direction": 1,
+  "level": 2
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Propulsion equipment</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/propulsion/drive</span>
+</div>
+<p class="summary">Move drone one tile forward or backward</p>
+<div class="detail"><h4>Request Body</h4><pre>direction: integer (1=forward, -1=reverse)
+level: integer (1-3)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "direction": 1,
+  "level": 2
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Propulsion equipment</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Hovering drones can fly over buildings if high enough: above elevation 5 for 1x1 buildings, above 10 for 2x2, above 15 for 3x3 (including Command Centers). Difficult terrain (terrain_type 2) doubles the number of cycles required for ground movement.</p></div>
+</div>
+<div class="cat-header"><h3>Repeater</h3><span class="count">6 endpoints</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/repeater/deploy</span>
+</div>
+<p class="summary">Deploy the signal repeater (prevents movement)</p>
+<div class="detail"><h4>Requires</h4><pre>Repeater equipment (unlock_repeater research completed, drone at elevation 0, packed)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Unfolds the repeater. The drone cannot move while deployed. Only one mast (DF antenna / jammer / howitzer / repeater) may be deployed on a drone at a time.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/repeater/stow</span>
+</div>
+<p class="summary">Stow the signal repeater (re-enables movement)</p>
+<div class="detail"><h4>Requires</h4><pre>Repeater equipment (deployed, not transmitting, mast at height 0)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Packs the repeater up so the drone can move again. Must deactivate transmission and lower the mast to height 0 first.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/repeater/raise</span>
+</div>
+<p class="summary">Raise the repeater antenna mast</p>
+<div class="detail"><h4>Request Body</h4><pre>target_height: integer (optional) - target antenna height (default: current + 5, max 20)
+</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Repeater equipment (deployed)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Raises the mast. Does NOT change drone elevation. Maximum antenna height is 20. The mast must be raised above 0 before the repeater can transmit.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/repeater/lower</span>
+</div>
+<p class="summary">Lower the repeater antenna mast</p>
+<div class="detail"><h4>Request Body</h4><pre>target_height: integer (optional) - target antenna height (default: current - 5, min 0)
+</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Repeater equipment (deployed, not transmitting)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Lowers the mast. Must stop transmitting before lowering. Lower to height 0 before stowing.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/repeater/activate</span>
+</div>
+<p class="summary">Start transmitting the repeater amplification cone</p>
+<div class="detail"><h4>Request Body</h4><pre>direction: integer (0-5, required) - hex direction for the amplification cone
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "direction": 1
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Repeater equipment (deployed, mast raised, sufficient battery)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Projects a directional cone (same geometry as the jammer beam). Every FRIENDLY drone inside the cone is less likely to drop commands relayed from the command center (base reduction plus repeater research). Draws a small amount of battery each cycle while transmitting. Enemy drones are unaffected.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/repeater/deactivate</span>
+</div>
+<p class="summary">Stop transmitting the signal repeater</p>
+<div class="detail"><h4>Requires</h4><pre>Repeater equipment (transmitting)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Stops transmission and the per-cycle battery drain.</p></div>
+</div>
+<div class="cat-header"><h3>Sensors</h3><span class="count">2 endpoints</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/sensors/scan</span>
+</div>
+<p class="summary">Scan nearby tiles for terrain, resources, and units</p>
+<div class="detail"><h4>Request Body</h4><pre>level: integer (1-3)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "level": 2
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Sensors equipment</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Returns tiles using relative coordinates where (0, 0) is the scanning drone's position. A tile at (1, -2) means 1 column east and 2 rows north of the drone.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/sensors/identify</span>
+</div>
+<p class="summary">Identify objects at target tile with detailed info</p>
+<div class="detail"><h4>Request Body</h4><pre>level: integer (1-3)
+target_q: integer (required)
+target_r: integer (required)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "level": 1,
+  "target_q": 2,
+  "target_r": -1
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Sensors equipment</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Targets relative coordinates (drone is at 0, 0). Returns detailed info about drones, buildings, and resources at that location. Target must be within sensor range.</p></div>
+</div>
+<div class="cat-header"><h3>Shield Generator</h3><span class="count">2 endpoints</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/shield_generator/charge</span>
+</div>
+<p class="summary">Charge drone's shields</p>
+<div class="detail"><h4>Request Body</h4><pre>level: integer (1-3)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "level": 2
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Shield Generator equipment</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/shield_generator/transfer</span>
+</div>
+<p class="summary">Transfer shields to an adjacent drone</p>
+<div class="detail"><h4>Request Body</h4><pre>level: integer (1-3, default 1)
+target_q: integer (required)
+target_r: integer (required)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "level": 1,
+  "target_q": 10,
+  "target_r": 20
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>None (all drones can transfer shields)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">All drones have base max shields of 50. Target must be adjacent and at same elevation. L1: 3 cycles/25 shields/5 battery, L2: 2 cycles/20 shields/10 battery, L3: 1 cycle/15 shields/15 battery. Shield Generator research adds shield_rate_bonus to transfer amount.</p></div>
+</div>
+<div class="cat-header"><h3>Smoke Launcher</h3><span class="count">1 endpoint</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/smoke_launcher/deploy</span>
+</div>
+<p class="summary">Deploy a smoke screen on the drone's current tile</p>
+<div class="detail"><h4>Requires</h4><pre>Smoke Launcher equipment (unlock_smoke_launcher research completed, charges remaining)</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Deploys a smoke screen on the drone's current tile and surrounding tiles (radius 1). Smoke blocks line-of-sight for scan and identify commands. Duration: 20 cycles. Consumable — equipment is removed when all charges are used. Deploy cycles and battery cost vary by level.</p></div>
+</div>
+<div class="cat-header"><h3>Targeting Computer</h3><span class="count">1 endpoint</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/targeting_computer/mark</span>
+</div>
+<p class="summary">Mark enemy drone or building at coordinates for accuracy bonus</p>
+<div class="detail"><h4>Request Body</h4><pre>level: integer (1-3)
+target_q: integer (required) - Q coordinate of target tile
+target_r: integer (required) - R coordinate of target tile
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "level": 2,
+  "target_q": -1,
+  "target_r": 1
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Targeting Computer equipment</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Uses relative coordinates (drone is at 0, 0). Automatically detects target at coordinates. Prioritizes ground drones over hover drones. If no drone found, marks building if present.</p></div>
+</div>
+<div class="cat-header"><h3>Wire-Guided Missile</h3><span class="count">1 endpoint</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/missile/fire</span>
+</div>
+<p class="summary">Launch wire-guided missile at target tile</p>
+<div class="detail"><h4>Request Body</h4><pre>level: integer 1-3 (optional, default 1) - L1: range 5, battery 10; L2: range 10, battery 20; L3: range 15, battery 30
+target_q: integer (required)
+target_r: integer (required)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "level": 2,
+  "target_q": 3,
+  "target_r": -2
+}</pre></div>
+<div class="detail"><h4>Requires</h4><pre>Wire-Guided Missile equipment</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Missile travels tile-by-tile (default 2 cycles/tile). Level controls range and battery cost (L1: 5 range/10 battery, L2: 10/20, L3: 15/30). Drone cannot take other actions while guiding, EXCEPT mark which redirects the missile to a new target (requires targeting computer). If drone is destroyed, missile is lost. Targets at location receive warning.</p></div>
+</div>
+</section>
+<section class="section" id="drone-warnings">
+<div class="section-header"><h2>Drone Warnings</h2>
+<span class="prefix">/drones/&lt;drone_id&gt;/warnings</span>
+<p class="desc">Configure automated warning thresholds for drone stats. When a stat drops below the configured percentage, a WARNING message is delivered via the message queue. Warnings fire once per threshold crossing and reset when the stat recovers above the threshold.</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/drones/&lt;drone_id&gt;/warnings</span>
+</div>
+<p class="summary">Get warning thresholds for a drone</p>
+<div class="detail"><h4>Response</h4><pre>drone_id: string
+thresholds: {battery: int, health: int, shields: int, equipment: int} (only set keys present)
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/drones/&lt;drone_id&gt;/warnings</span>
+</div>
+<p class="summary">Set warning thresholds for a drone</p>
+<div class="detail"><h4>Request Body</h4><pre>battery: integer (0-100, optional) - battery percentage threshold
+equipment: integer (0-100, optional) - equipment durability percentage threshold (triggers when ANY equipped item drops below)
+health: integer (0-100, optional) - health percentage threshold
+shields: integer (0-100, optional) - shield percentage threshold
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "battery": 20,
+  "equipment": 25,
+  "health": 30,
+  "shields": 50
+}</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Values are percentages (0-100). Null or missing keys disable that warning type. Equipment warnings trigger when any single equipped item's durability percentage drops below the threshold. The warning message identifies which specific items are below threshold.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method delete">DELETE</span>
+<span class="path">/drones/&lt;drone_id&gt;/warnings</span>
+</div>
+<p class="summary">Remove all warning thresholds for a drone</p>
+<div class="detail"><h4>Response</h4><pre>drone_id: string
+message: Warning thresholds removed
+</pre></div>
+</div>
+</section>
+<section class="section" id="building-warnings">
+<div class="section-header"><h2>Building Warnings</h2>
+<span class="prefix">/buildings/&lt;building_id&gt;/warnings</span>
+<p class="desc">Configure automated warning thresholds for building stats. Supports health and shields for all buildings, plus storage thresholds for Silos and Refiners. 'Below' warnings fire when a value drops below the threshold; 'above' warnings fire when a value rises above the threshold. Warnings fire once per crossing and reset when the value returns past the threshold.</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/buildings/&lt;building_id&gt;/warnings</span>
+</div>
+<p class="summary">Get warning thresholds for a building</p>
+<div class="detail"><h4>Response</h4><pre>building_id: string
+thresholds: {health: int, shields: int, ...} (only set keys present)
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/warnings</span>
+</div>
+<p class="summary">Set warning thresholds for a building</p>
+<div class="detail"><h4>Request Body</h4><pre>health: integer (0-100, optional) - health percentage threshold (below)
+ore_storage_above: integer (0-100, optional, Refiner only) - warn when ore storage goes above this %
+ore_storage_below: integer (0-100, optional, Refiner only) - warn when ore storage drops below this %
+resource_storage_above: integer (0-100, optional, Refiner only) - warn when resource storage goes above this %
+resource_storage_below: integer (0-100, optional, Refiner only) - warn when resource storage drops below this %
+shields: integer (0-100, optional) - shield percentage threshold (below)
+storage_above: integer (0-100, optional, Silo only) - warn when storage goes above this %
+storage_below: integer (0-100, optional, Silo only) - warn when storage drops below this %
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "health": 30,
+  "shields": 50,
+  "storage_below": 10
+}</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Values are percentages (0-100). Valid keys depend on the building type: all buildings support health and shields; Silos also support storage_above and storage_below; Refiners also support ore_storage_above, ore_storage_below, resource_storage_above, and resource_storage_below. Unknown keys for the building type are rejected.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method delete">DELETE</span>
+<span class="path">/buildings/&lt;building_id&gt;/warnings</span>
+</div>
+<p class="summary">Remove all warning thresholds for a building</p>
+<div class="detail"><h4>Response</h4><pre>building_id: string
+message: Warning thresholds removed
+</pre></div>
+</div>
+</section>
+<section class="section" id="buildings">
+<div class="section-header"><h2>Buildings</h2>
+<span class="prefix">/buildings</span>
+<p class="desc">Building listing and information</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/buildings</span>
+</div>
+<p class="summary">List building IDs owned by current user (POST /buildings/&lt;building_id&gt;/common/status to queue a status report)</p>
+<div class="detail"><h4>Response</h4><pre>building_ids: [array of building ID strings]
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/common/status</span>
+</div>
+<p class="summary">Queue a status action (1 power, 1 cycle)</p>
+<div class="detail"><h4>Request Body</h4><pre>efficiency: float (0.01-1.0, optional)
+</pre></div>
+<div class="detail"><h4>Response</h4><pre>action_id: string
+message: status action queued successfully
+</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Status information is returned via message queue when action completes. Coordinates are relative to the building's origin (top-left tile), where (0, 0) is the origin. Costs 1 power and takes 1 cycle (adjusted by efficiency). Solar panels include: direction (0-359), tilt (0-90), base_power, buffer, max_buffer, current_power, solar_efficiency.</p></div>
+</div>
+<div class="cat-header"><h3>Common</h3><span class="count">1 endpoint</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/common/repair</span>
+</div>
+<p class="summary">Self-repair building health</p>
+<div class="detail"><h4>Request Body</h4><pre>efficiency: float (0.01-1.0, optional)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "efficiency": 1
+}</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">All buildings can self-repair. Costs 3 titanium_parts + 1 battery_materials from command center (consumed immediately when queued). Takes 20 cycles, heals 50 HP (capped at max health). Power cost: 2.5/cycle (50 total at efficiency 1.0). Requires a functional command center with sufficient resources.</p></div>
+</div>
+</section>
+<section class="section" id="building-actions">
+<div class="section-header"><h2>Building Actions</h2>
+<span class="prefix">/buildings/&lt;building_id&gt;/&lt;type&gt;</span>
+<p class="desc">Queue actions for buildings. All require efficiency (0.01-1.0) parameter.</p>
+</div>
+<div class="cat-header"><h3>Charging Station</h3><span class="count">1 endpoint</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/charging_station/charge</span>
+</div>
+<p class="summary">Charge a drone at charging station</p>
+<div class="detail"><h4>Request Body</h4><pre>efficiency: float (0.01-1.0)
+q: integer (required) - drone hex Q coordinate
+r: integer (required) - drone hex R coordinate
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "efficiency": 1,
+  "q": 50,
+  "r": 35
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Drone Charging Station</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Takes 10 cycles. Drone is identified by its position. Server resolves the drone_id from q/r coordinates.</p></div>
+</div>
+<div class="cat-header"><h3>Command Center</h3><span class="count">5 endpoints</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/command_center/build</span>
+</div>
+<p class="summary">Build a new building</p>
+<div class="detail"><h4>Request Body</h4><pre>building_type: string (required)
+efficiency: float (0.01-1.0)
+target_q: integer (required)
+target_r: integer (required)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "building_type": "laser_turret",
+  "efficiency": 1,
+  "target_q": 25,
+  "target_r": 30
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Command Center</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Building types: solar_panel_array, refiner, drone_charging_station, drone_production_plant, drone_equipment_production_plant, drone_repair_station, laser_turret, missile_turret, auto_cannon_turret, silo, battery_array, shield_array, sensor_array, point_defense_system, lucas_launcher</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/command_centre/status_report</span>
+</div>
+<p class="summary">Get comprehensive status report of all drones and buildings</p>
+<div class="detail"><h4>Request Body</h4><pre>efficiency: float (0.01-1.0, optional)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "efficiency": 1
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Command Center</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Automatically finds user's command center. Returns full report of all owned drones (including those outside base), all buildings, adjacent tile info, and summary stats. All coordinates are relative to the command center's origin (top-left tile), where (0, 0) is the origin. For a 3x3 command center, this is the top-left corner, not the center tile. Costs 5 power.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/buildings/&lt;building_id&gt;/upgrades</span>
+</div>
+<p class="summary">Get upgrade status and available upgrades for your team</p>
+<div class="detail"><h4>Response</h4><pre>active_research: {current research info or null}
+available_upgrades: [array of available upgrades]
+current_upgrades: {equipment_type: level}
+</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Command Center</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Shows all upgrades your team can research, current upgrade levels, and any research in progress</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/command_center/research</span>
+</div>
+<p class="summary">Start researching an equipment upgrade</p>
+<div class="detail"><h4>Request Body</h4><pre>efficiency: float (0.01-1.0)
+equipment_type: string (required)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "efficiency": 1,
+  "equipment_type": "drill"
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Command Center</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Requires resources in command center. Research takes many cycles to complete. Only one research can be active at a time per team. Queue this action each cycle to progress research. Valid equipment_type values: drill, sensors, battery, portable_charger, reactive_armour, hopper, mobile_repair_kit, shield_generator, laser_cannon, propulsion, hover_tech, targeting_computer, wire_guided_missile, auto_cannon, df_antenna, jammer, land_mine, signature_dampener, decoy_beacon, smoke_launcher, point_defense, seismic_sensor, ammunition, antenna, repeater, howitzer, howitzer_shells, howitzer_charges, baseline_drone, unlock_reactive_armour, unlock_hover_tech, unlock_wire_guided_missile, unlock_auto_cannon, unlock_shield_generator, unlock_targeting_computer, unlock_df_antenna, unlock_jammer, unlock_seismic_sensor, unlock_land_mine, unlock_signature_dampener, unlock_decoy_beacon, unlock_smoke_launcher, unlock_point_defense, unlock_howitzer, unlock_antenna, unlock_repeater. The baseline_drone type upgrades the drone chassis itself (health, battery, equipment slots, shields) rather than a specific equipment piece. The unlock_* types are single-tier research that enables building advanced equipment at the Equipment Production Plant.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/command_center/cancel_research</span>
+</div>
+<p class="summary">Cancel active research (resources NOT refunded)</p>
+<div class="detail"><h4>Request Body</h4><pre>efficiency: float (0.01-1.0)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "efficiency": 1
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Command Center</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Cancels research in progress. Resources spent to start research are lost.</p></div>
+</div>
+<div class="cat-header"><h3>Equipment Plant</h3><span class="count">2 endpoints</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/equipment_plant/install</span>
+</div>
+<p class="summary">Install equipment on drone</p>
+<div class="detail"><h4>Request Body</h4><pre>efficiency: float (0.01-1.0)
+equipment_type: string (required)
+q: integer (required) - drone hex Q coordinate
+r: integer (required) - drone hex R coordinate
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "efficiency": 1,
+  "equipment_type": "laser_cannon",
+  "q": 50,
+  "r": 35
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Drone Equipment Production Plant</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Takes 25 cycles. Drone is identified by its position. Server resolves the drone_id from q/r coordinates.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/equipment_plant/remove</span>
+</div>
+<p class="summary">Remove equipment from drone</p>
+<div class="detail"><h4>Request Body</h4><pre>efficiency: float (0.01-1.0)
+equipment_index: integer (required)
+q: integer (required) - drone hex Q coordinate
+r: integer (required) - drone hex R coordinate
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "efficiency": 1,
+  "equipment_index": 0,
+  "q": 50,
+  "r": 35
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Drone Equipment Production Plant</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Takes 25 cycles. Drone is identified by its position. Server resolves the drone_id from q/r coordinates.</p></div>
+</div>
+<div class="cat-header"><h3>LUCAS Launcher</h3><span class="count">2 endpoints</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/lucas/launch</span>
+</div>
+<p class="summary">Launch a LUCAS drone at target coordinates</p>
+<div class="detail"><h4>Request Body</h4><pre>efficiency: float (0.01-1.0)
+target_q: integer (required, relative to building)
+target_r: integer (required, relative to building)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "efficiency": 1,
+  "target_q": 30,
+  "target_r": -15
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>LUCAS Launcher</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Launches a stored LUCAS drone at the target tile. The drone flies at elevation 30, speed 1 tile per 3 cycles. Takes 25 cycles to launch (500 power at max efficiency). Only 1 LUCAS drone may be in flight per launcher. Must have a stored LUCAS drone (built via manufacture endpoint). Target must be within 3 tiles of the nearest enemy base edge. LUCAS drones emit seismic signatures only on launch and impact (they are airborne during flight, so no ground vibration). LUCAS drones emit strong EM signatures continuously during flight (guidance/propulsion electronics). All weapons receive +30% accuracy bonus against LUCAS drones. Max flight time: 500 cycles. If the launcher is destroyed, the in-flight drone loses guidance and falls. Coordinates are relative to the building origin.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/lucas/redirect</span>
+</div>
+<p class="summary">Redirect an in-flight LUCAS drone to new target</p>
+<div class="detail"><h4>Request Body</h4><pre>efficiency: float (0.01-1.0)
+target_q: integer (required, relative to building)
+target_r: integer (required, relative to building)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "efficiency": 1,
+  "target_q": 40,
+  "target_r": -20
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>LUCAS Launcher</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Redirects the currently in-flight LUCAS drone to new target coordinates. Cannot redirect a LUCAS drone that is already falling. New target must be within 3 tiles of the nearest enemy base edge. Coordinates are relative to the building origin.</p></div>
+</div>
+<div class="cat-header"><h3>Point Defense System</h3><span class="count">1 endpoint</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/point_defense/activate</span>
+</div>
+<p class="summary">Activate building point defense system</p>
+<div class="detail"><h4>Request Body</h4><pre>cycles: integer (optional, default 1)
+efficiency: float (0.01-1.0)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "cycles": 10,
+  "efficiency": 1
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Point Defense System</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Activates the building PDS for the specified number of cycles (default 1) to intercept incoming enemy missiles within 8-tile interception range. Each missile has a 30% chance of being intercepted. The PDS re-activates automatically each cycle until the specified cycles are exhausted. If power is lost, the action pauses and resumes when power returns.</p></div>
+</div>
+<div class="cat-header"><h3>Production</h3><span class="count">1 endpoint</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/production/manufacture</span>
+</div>
+<p class="summary">Build a drone or equipment (unified endpoint)</p>
+<div class="detail"><h4>Request Body</h4><pre>efficiency: float (0.01-1.0)
+equipment_type: string (required for equipment plant only)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "efficiency": 1,
+  "equipment_type": "laser_cannon"
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Drone Production Plant, Drone Equipment Production Plant, LUCAS Launcher</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">For Drone Production Plant: builds a new drone. For Equipment Plant: requires equipment_type. For LUCAS Launcher: builds a LUCAS attack drone (stored internally, max 4). Equipment types: drill, sensors, battery, portable_charger, reactive_armour, hopper, mobile_repair_kit, shield_generator, laser_cannon, propulsion, hover_tech, targeting_computer, wire_guided_missile, auto_cannon, df_antenna, jammer, land_mine, signature_dampener, decoy_beacon, smoke_launcher, point_defense, seismic_sensor, armour_piercing_ammunition, high_explosive_ammunition, canister_round_ammunition, antenna, repeater, howitzer, howitzer_shells, howitzer_charges. Note: Advanced equipment (reactive_armour, hover_tech, wire_guided_missile, auto_cannon, all ammunition types, shield_generator, targeting_computer, df_antenna, jammer, seismic_sensor, land_mine, signature_dampener, decoy_beacon, smoke_launcher, point_defense, antenna, repeater, howitzer + howitzer_shells + howitzer_charges) requires unlock research at the Command Center before it can be built. See equipment_unlock_research in the upgrades section.</p></div>
+</div>
+<div class="cat-header"><h3>Refiner</h3><span class="count">1 endpoint</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/refiner/process</span>
+</div>
+<p class="summary">Process ore into refined materials</p>
+<div class="detail"><h4>Request Body</h4><pre>efficiency: float (0.01-1.0)
+ore_type: string (optional)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "efficiency": 1,
+  "ore_type": "titanium_ore"
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Refiner</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Takes 1 cycle per ore unit (at efficiency 1.0). Processes ore from the refiner's input storage into refined materials.</p></div>
+</div>
+<div class="cat-header"><h3>Repair Station</h3><span class="count">2 endpoints</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/repair_station/repair</span>
+</div>
+<p class="summary">Repair drone at repair station</p>
+<div class="detail"><h4>Request Body</h4><pre>efficiency: float (0.01-1.0)
+q: integer (required) - drone hex Q coordinate
+r: integer (required) - drone hex R coordinate
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "efficiency": 1,
+  "q": 50,
+  "r": 35
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Drone Repair Station</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Drone is identified by its position. Server resolves the drone_id from q/r coordinates.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/repair_station/repair_equipment</span>
+</div>
+<p class="summary">Repair equipment durability on a drone</p>
+<div class="detail"><h4>Request Body</h4><pre>efficiency: float (0.01-1.0)
+equipment_id: string - full UUID (required)
+q: integer (required) - drone hex Q coordinate
+r: integer (required) - drone hex R coordinate
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "efficiency": 1,
+  "equipment_id": "4aac1f00-a1b2-4c3d-8e5f-1234567890ab",
+  "q": 50,
+  "r": 35
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Drone Repair Station</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Drone is identified by its position. Restores up to 50 durability per repair action, capped at equipment's max durability. Cannot repair destroyed equipment (durability 0).</p></div>
+</div>
+<div class="cat-header"><h3>Resource Transfer</h3><span class="count">2 endpoints</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/common/load</span>
+</div>
+<p class="summary">Transfer resources from building to drone (unified endpoint)</p>
+<div class="detail"><h4>Request Body</h4><pre>amount: integer (optional, transfers max if omitted)
+efficiency: float (0.01-1.0)
+q: integer (required) - drone hex Q coordinate
+r: integer (required) - drone hex R coordinate
+resource_type: string (optional, transfers all valid types if omitted)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "amount": 20,
+  "efficiency": 1,
+  "q": 50,
+  "r": 35,
+  "resource_type": "titanium_parts"
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Refiner, Silo, DroneProductionPlant, DroneEquipmentProductionPlant, CommandCenter, LucasLauncher</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Takes 5 cycles. Unified endpoint for all building-to-drone transfers. Drone is identified by position. Drone must have hopper equipment and be within range of the building.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/common/unload</span>
+</div>
+<p class="summary">Transfer resources from drone to building (unified endpoint)</p>
+<div class="detail"><h4>Request Body</h4><pre>amount: integer (optional, some buildings support this)
+efficiency: float (0.01-1.0)
+q: integer (required) - drone hex Q coordinate
+r: integer (required) - drone hex R coordinate
+resource_type: string (optional, transfers all valid types if omitted)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "efficiency": 1,
+  "q": 50,
+  "r": 35,
+  "resource_type": "titanium_ore"
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Refiner, Silo, DroneProductionPlant, DroneEquipmentProductionPlant, CommandCenter, LucasLauncher</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Takes 5 cycles. Unified endpoint for all drone-to-building transfers. Drone is identified by position. Drone must have hopper equipment and be within range of the building.</p></div>
+</div>
+<div class="cat-header"><h3>Sensor Array</h3><span class="count">2 endpoints</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/sensor_array/scan</span>
+</div>
+<p class="summary">Scan nearby tiles for terrain, resources, and units</p>
+<div class="detail"><h4>Request Body</h4><pre>efficiency: float (0.01-1.0)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "efficiency": 1
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Sensor Array</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Scans a 20-tile radius around the sensor array, revealing terrain, resources, drones, and buildings. The sensor array is elevated high enough to bypass all line-of-sight checks. Returns results via message queue using coordinates relative to the building's position.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/sensor_array/identify</span>
+</div>
+<p class="summary">Identify objects at a specific tile with detailed info</p>
+<div class="detail"><h4>Request Body</h4><pre>efficiency: float (0.01-1.0)
+q: integer (required, relative to building)
+r: integer (required, relative to building)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "efficiency": 1,
+  "q": 5,
+  "r": -3
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Sensor Array</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Identifies any tile within 20-tile range, returning detailed information about terrain, resources, buildings, and drones at that location. The sensor array is elevated high enough to bypass all line-of-sight checks. Coordinates are relative to the sensor array's position.</p></div>
+</div>
+<div class="cat-header"><h3>Shield Array</h3><span class="count">3 endpoints</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/shield_array/generate</span>
+</div>
+<p class="summary">Generate shields in shield array</p>
+<div class="detail"><h4>Request Body</h4><pre>efficiency: float (0.01-1.0)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "efficiency": 1
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Shield Array</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/shield_array/transfer</span>
+</div>
+<p class="summary">Transfer shields to another building</p>
+<div class="detail"><h4>Request Body</h4><pre>amount: integer (optional)
+efficiency: float (0.01-1.0)
+target_building_id: string (required)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "amount": 50,
+  "efficiency": 1,
+  "target_building_id": "command-center-1"
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Shield Array</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/shield_array/transfer_to_drone</span>
+</div>
+<p class="summary">Transfer shields from shield array to a drone</p>
+<div class="detail"><h4>Request Body</h4><pre>amount: integer (optional)
+efficiency: float (0.01-1.0)
+q: integer (required) - drone hex Q coordinate
+r: integer (required) - drone hex R coordinate
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "amount": 25,
+  "efficiency": 1,
+  "q": 50,
+  "r": 35
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Shield Array</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Transfers shield power from buffer to target drone. Drone is identified by position.</p></div>
+</div>
+<div class="cat-header"><h3>Solar Panel</h3><span class="count">1 endpoint</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/solar_panel/reposition</span>
+</div>
+<p class="summary">Reposition solar panel direction and tilt</p>
+<div class="detail"><h4>Request Body</h4><pre>direction: float (required, 0-359 degrees) - azimuth direction
+efficiency: float (0.01-1.0)
+tilt: float (optional, 0-90 degrees) - elevation angle (0=horizon, 90=straight up). Defaults to current tilt if omitted.
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "direction": 180,
+  "efficiency": 0.5,
+  "tilt": 45
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Solar Panel Array</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Panel efficiency uses 3D dot-product: panel and sun orientations are converted to unit vectors and efficiency = max(0, dot(panel, sun)) * brightness. A sun below the horizon (elevation &lt;= 0) contributes 0 power. Both suns can set, creating true nighttime.</p></div>
+</div>
+<div class="cat-header"><h3>Turrets</h3><span class="count">5 endpoints</span></div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/turret/fire</span>
+</div>
+<p class="summary">Fire turret at target (unified endpoint for all turret types)</p>
+<div class="detail"><h4>Request Body</h4><pre>efficiency: float (0.01-1.0)
+q: integer (required) - target hex Q coordinate
+r: integer (required) - target hex R coordinate
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "efficiency": 1,
+  "q": 50,
+  "r": 35
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Laser Turret / Missile Turret / Auto-Cannon Turret</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Server determines turret type from the building. All turret types use the same q/r target interface. Laser Turret: fires laser at target position. Missile Turret: launches a missile at target; missile travels tile-by-tile (2 cycles/tile), fails if turret destroyed mid-flight, cannot be redirected. Auto-Cannon Turret: fires 2 rounds of active ammo type at target; must reload first. Ammo types: armour_piercing (50 dmg, ignores armour), high_explosive (30 dmg + 15 splash), canister_round (instant cone, 5 dmg/tile). Accuracy: 75%-20% by range, capped at 95%. All weapons receive +30% accuracy bonus against LUCAS drones. Min range: 2 tiles.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/turret/reload</span>
+</div>
+<p class="summary">Reload turret ammunition</p>
+<div class="detail"><h4>Request Body</h4><pre>ammo_type: string (optional) - required for auto-cannon turret: armour_piercing, high_explosive, canister_round
+efficiency: float (0.01-1.0)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "ammo_type": "armour_piercing",
+  "efficiency": 1
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Missile Turret / Auto-Cannon Turret</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Replenishes ammunition. Costs resources from command center. For auto-cannon, also sets active ammo type. Missile turret reload: 8 titanium_parts + 12 battery_materials. Auto-cannon reload: 4 titanium_parts + 4 battery_materials.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/turret/scan</span>
+</div>
+<p class="summary">Scan area with turret sensors</p>
+<div class="detail"><h4>Request Body</h4><pre>efficiency: float (0.01-1.0)
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "efficiency": 0.5
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Laser Turret / Missile Turret / Auto-Cannon Turret</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Scans a 15-tile radius around the turret. Coordinates in results are relative to the building's position.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/turret/identify</span>
+</div>
+<p class="summary">Identify target at position with turret</p>
+<div class="detail"><h4>Request Body</h4><pre>efficiency: float (0.01-1.0)
+q: integer (required) - target hex Q coordinate
+r: integer (required) - target hex R coordinate
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "efficiency": 0.75,
+  "q": 50,
+  "r": 35
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Laser Turret / Missile Turret / Auto-Cannon Turret</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Target must be within 15-tile range. Target is identified by position. Returns detailed info about drone at that location.</p></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/buildings/&lt;building_id&gt;/turret/mark</span>
+</div>
+<p class="summary">Mark target at position with turret</p>
+<div class="detail"><h4>Request Body</h4><pre>efficiency: float (0.01-1.0)
+q: integer (required) - target hex Q coordinate
+r: integer (required) - target hex R coordinate
+</pre></div>
+<div class="detail"><h4>Example</h4><pre>{
+  "efficiency": 1,
+  "q": 50,
+  "r": 35
+}</pre></div>
+<div class="detail"><h4>Building Type</h4><pre>Laser Turret / Missile Turret / Auto-Cannon Turret</pre></div>
+<div class="detail"><h4>Notes</h4><p class="note">Target must be within 15-tile range. Target is identified by position. Marks drone at location for accuracy bonus. For missile turrets: if missiles are in flight, mark redirects all in-flight missiles to the new target.</p></div>
+</div>
+</section>
+<section class="section" id="action-queue">
+<div class="section-header"><h2>Action Queue</h2>
+<span class="prefix">/queue</span>
+<p class="desc">View and manage queued actions</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/queue/drones</span>
+</div>
+<p class="summary">Get all queued drone actions</p>
+<div class="detail"><h4>Response</h4><pre>actions: [array of action objects]
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/queue/buildings</span>
+</div>
+<p class="summary">Get all queued building actions</p>
+<div class="detail"><h4>Response</h4><pre>actions: [array of action objects]
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method delete">DELETE</span>
+<span class="path">/queue/drones/&lt;action_id&gt;</span>
+</div>
+<p class="summary">Cancel a queued drone action</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method delete">DELETE</span>
+<span class="path">/queue/buildings/&lt;action_id&gt;</span>
+</div>
+<p class="summary">Cancel a queued building action</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method post">POST</span>
+<span class="path">/queue/reset</span>
+</div>
+<p class="summary">Clear all drone and building action queues</p>
+<div class="detail"><h4>Response</h4><pre>message: All queues cleared
+</pre></div>
+</div>
+</section>
+<section class="section" id="messages">
+<div class="section-header"><h2>Messages</h2>
+<span class="prefix">/messages</span>
+<p class="desc">Retrieve game messages and notifications. Messages are limited to the last 100 per user.</p>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/messages</span>
+</div>
+<p class="summary">Get messages</p>
+<div class="detail"><h4>Query Parameters</h4><pre>consume: boolean (optional, default: false)
+count: integer (optional, returns all if not specified)
+</pre></div>
+<div class="detail"><h4>Response</h4><pre>count: integer
+messages: [array of message objects]
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method get">GET</span>
+<span class="path">/messages/count</span>
+</div>
+<p class="summary">Get message count</p>
+<div class="detail"><h4>Response</h4><pre>count: integer
+</pre></div>
+</div>
+<div class="endpoint"><div class="ep-header">
+<span class="method delete">DELETE</span>
+<span class="path">/messages</span>
+</div>
+<p class="summary">Clear all messages</p>
+</div>
+</section>
+<section class="section" id="status-codes"><div class="section-header"><h2>HTTP Status Codes</h2></div>
+<div style="padding:24px"><table><thead><tr><th>Code</th><th>Description</th></tr></thead><tbody>
+<tr><td>200</td><td>Success</td></tr>
+<tr><td>201</td><td>Action queued successfully</td></tr>
+<tr><td>400</td><td>Bad request / Action rejected</td></tr>
+<tr><td>401</td><td>Unauthorized (missing or invalid token)</td></tr>
+<tr><td>403</td><td>Forbidden (resource not owned by user)</td></tr>
+<tr><td>404</td><td>Resource not found</td></tr>
+</tbody></table></div></section>
+<section class="section" id="error-format"><div class="section-header"><h2>Error Response Format</h2>
+<p class="desc">Error responses follow this format</p>
+</div>
+<div style="padding:24px"><div class="detail"><h4>Example</h4><pre>{
+  "error": {
+    "code": "DRONE_NOT_FOUND",
+    "details": {
+      "drone_id": "abc123"
+    },
+    "message": "Drone not found"
+  }
+}</pre></div></div>
+</section>
+<footer><p>Drone Battles &mdash; API Documentation</p></footer>
+</div>
+</body>
+</html>

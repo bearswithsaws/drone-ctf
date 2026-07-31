@@ -71,13 +71,21 @@ a pydantic→JSON-schema drift check) and `tools/` (`calibrate/`, `replay/`).
 
 Every `action_queued`/`action_completed`/`action_failed` carries a server
 `action_id`. `GET /queue/drones|buildings` exposes real queue state and
-`DELETE /queue/{kind}/<action_id>` / `POST /queue/reset` control it.
+`DELETE /queue/{kind}/<action_id>` / `POST /queue/reset` control it. The API
+documentation says the successful POST's `action_id` identifies that queued
+action, but live testing on 2026-07-31 found a server defect: the POST ID differs
+from the ID shared by the queued and terminal messages. The tracker therefore
+retains both as aliases and correlates a previously unknown lifecycle ID by
+entity, action subject, payload where available, and FIFO order.
 
 1. Submit → record `Intent{local_id, entity, action, preconditions, SUBMITTED}`.
 2. `action_queued` → correlate via action_id, `QUEUED`.
-3. No ack within `T_ack(distance)` → poll the queue and diff: **present** ⇒ the
-   report was lost; **absent** ⇒ the command was lost ⇒ resubmit *only if the
-   controller-declared precondition still holds* (no double-drives).
+3. No ack within `T_ack(distance)` → poll the queue and diff. An unacknowledged
+   POST that is absent is treated as command loss and resubmitted *only if the
+   controller-declared precondition still holds*. A successful POST is proof of
+   acceptance: queue absence can mean an ID mismatch or a fast completion, so
+   it is never resubmitted and is instead recorded as an inferred completion
+   that a later definitive failure may correct.
 4. `action_completed`/`failed` → `DONE`; feed `entity_sim` + `world.ingest`.
    Completed-without-queued ⇒ infer the queued report was also lost.
 5. Every loss event feeds `metrics` and recalibrates `rules/comms.py` online.

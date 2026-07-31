@@ -2,10 +2,12 @@
 
 The game reports an action through three independent channels: the POST
 response, an ``*_action_queued`` message, and an ``*_action_completed`` (or
-``action_failed``) message.  Radio loss can remove either message, and an
-uncertain POST may not have reached the server at all.  :class:`ActionTracker`
-keeps a controller intent stable across those failures and consults the
-server-side queue before it ever repeats a command.
+``action_failed``) message.  Live servers have also returned one ID from the
+POST and a different ID in the queue/lifecycle stream.  Radio loss can remove
+either message, and an uncertain POST may not have reached the server at all.
+:class:`ActionTracker` keeps a controller intent stable across those failures,
+treats both server IDs as aliases, and consults the server-side queue before it
+ever repeats an unacknowledged command.
 
 Controllers must supply a precondition callback.  It is evaluated immediately
 before a lost command is resubmitted; a stale intent is abandoned instead of
@@ -108,6 +110,8 @@ class Intent:
     precondition: Precondition = field(repr=False, compare=False)
     state: IntentState = IntentState.SUBMITTED
     action_id: str | None = None
+    post_action_id: str | None = None
+    post_acknowledged: bool = False
     server_action_ids: list[str] = field(default_factory=list)
     attempts: int = 0
     submitted_at: float | None = None
@@ -121,6 +125,12 @@ class Intent:
     @property
     def terminal(self) -> bool:
         return self.state.terminal
+
+    @property
+    def acknowledged(self) -> bool:
+        """Whether a successful POST response proved server acceptance."""
+
+        return self.post_acknowledged
 
 
 @dataclass(frozen=True)
@@ -286,12 +296,24 @@ class ActionTracker:
         async with self._lock:
             intent = self._by_action_id.get(action_id)
             if intent is None:
-                messages = self._orphans.setdefault(action_id, [])
-                messages.append(payload)
-                self._orphans.move_to_end(action_id)
-                while len(self._orphans) > self._orphan_limit:
-                    self._orphans.popitem(last=False)
-                return
+                intent = self._correlate_lifecycle_message(payload)
+                if intent is None:
+                    messages = self._orphans.setdefault(action_id, [])
+                    messages.append(payload)
+                    self._orphans.move_to_end(action_id)
+                    while len(self._orphans) > self._orphan_limit:
+                        self._orphans.popitem(last=False)
+                    return
+                if intent.post_action_id != action_id:
+                    log.info(
+                        "Correlated lifecycle action_id %s to POST action_id %s "
+                        "(local_id=%s)",
+                        action_id,
+                        intent.post_action_id,
+                        intent.local_id,
+                    )
+                for orphan in self._orphans.pop(action_id, []):
+                    self._apply_message(intent, orphan, pending)
             self._apply_message(intent, payload, pending)
 
         await self._publish(pending)
@@ -326,7 +348,8 @@ class ActionTracker:
                         )
                     continue
 
-                present = self._extract_action_ids(result.data.get("actions", []))
+                actions = result.data.get("actions", [])
+                present = self._extract_action_ids(actions)
                 for intent in intents:
                     known_present = next(
                         (
@@ -336,6 +359,16 @@ class ActionTracker:
                         ),
                         None,
                     )
+                    if known_present is None:
+                        known_present = self._correlate_queue_action(actions, intent)
+                        if known_present is not None:
+                            self._bind_action_id(intent, known_present)
+                            for orphan in self._orphans.pop(known_present, []):
+                                self._apply_message(intent, orphan, pending)
+                    if intent.terminal:
+                        # Replaying an orphan may have supplied the definitive
+                        # terminal report before this poll found its queue ID.
+                        continue
                     if intent.state is IntentState.SUBMITTED:
                         if known_present is not None:
                             self._record_loss(
@@ -346,6 +379,24 @@ class ActionTracker:
                                 pending,
                                 action_id=known_present,
                                 reason="queue_poll_found_action",
+                                inferred=True,
+                            )
+                        elif intent.acknowledged:
+                            # A successful POST is proof that the server accepted
+                            # the command.  Its absence cannot mean command loss:
+                            # on the live server the queue/lifecycle ID differs,
+                            # and fast actions can finish before the first poll.
+                            self._record_loss(
+                                pending, intent, LossKind.QUEUED_REPORT, intent.action_id
+                            )
+                            self._record_loss(
+                                pending, intent, LossKind.COMPLETION_REPORT, intent.action_id
+                            )
+                            self._mark_terminal(
+                                intent,
+                                pending,
+                                IntentState.COMPLETED,
+                                reason="acknowledged_action_absent_from_queue",
                                 inferred=True,
                             )
                         else:
@@ -396,6 +447,7 @@ class ActionTracker:
         intent.state = IntentState.SUBMITTED
         intent.inferred_terminal = False
         intent.attempts += 1
+        intent.post_acknowledged = False
         intent.submitted_at = self._clock()
         intent.deadline_at = intent.submitted_at + self._timeout(intent)
         self._record_lifecycle(pending, intent, previous, reason)
@@ -408,11 +460,13 @@ class ActionTracker:
             self._record_lifecycle(pending, intent, intent.state, "submission_unacknowledged")
             return
 
+        intent.post_acknowledged = result.ok
         action_id = result.data.get("action_id") if result.ok else None
         if not isinstance(action_id, str) or not action_id:
             self._record_lifecycle(pending, intent, intent.state, "submission_unacknowledged")
             return
 
+        intent.post_action_id = action_id
         self._bind_action_id(intent, action_id)
         self._record_lifecycle(pending, intent, intent.state, "server_action_id_assigned")
         for orphan in self._orphans.pop(action_id, []):
@@ -539,6 +593,159 @@ class ActionTracker:
         if action_id not in intent.server_action_ids:
             intent.server_action_ids.append(action_id)
         intent.action_id = action_id
+
+    def _correlate_lifecycle_message(self, message: Mapping[str, Any]) -> Intent | None:
+        """Match a lifecycle-only ID to the oldest compatible local intent.
+
+        The live wire payload supplies the entity ID and a stable subject such
+        as ``Scan queued`` or ``Drive failed``.  Those fields form the missing
+        bridge between the POST ID and lifecycle ID.  For pipelined copies of
+        the same action, server lifecycle order is FIFO; terminal reports prefer
+        an intent that has already seen its queued report.
+        """
+
+        message_type = message.get("message_type")
+        candidates = [
+            intent
+            for intent in self._intents.values()
+            if self._message_matches_intent(message, intent)
+            and (
+                not intent.terminal
+                or intent.inferred_terminal
+                or intent.state is IntentState.ABANDONED
+            )
+        ]
+        if not candidates:
+            return None
+        if message_type in _COMPLETED_MESSAGE_TYPES | _FAILED_MESSAGE_TYPES:
+            candidates.sort(
+                key=lambda intent: (
+                    not intent.saw_queued,
+                    intent.submitted_at if intent.submitted_at is not None else float("inf"),
+                )
+            )
+        else:
+            candidates.sort(
+                key=lambda intent: (
+                    intent.submitted_at if intent.submitted_at is not None else float("inf")
+                )
+            )
+        return candidates[0]
+
+    @classmethod
+    def _message_matches_intent(
+        cls, message: Mapping[str, Any], intent: Intent
+    ) -> bool:
+        message_type = message.get("message_type")
+        building_message = isinstance(message_type, str) and message_type.startswith("building_")
+        expected_kind = EntityKind.BUILDING if building_message else EntityKind.DRONE
+        if intent.entity_kind is not expected_kind:
+            return False
+        entity_key = "building_id" if building_message else "drone_id"
+        if message.get(entity_key) != intent.entity_id:
+            return False
+        subject = message.get("subject")
+        if not isinstance(subject, str) or not cls._subject_matches_action(subject, intent.action):
+            return False
+
+        # Queued reports repeat much of the POST body.  A conflicting value is
+        # strong evidence that the report belongs to a different pipelined
+        # intent; matching values help FIFO disambiguation without being
+        # required for terminal reports, whose detail shape is action-specific.
+        details = message.get("details")
+        if isinstance(details, Mapping):
+            for key, expected in intent.payload.items():
+                actual = details.get(key)
+                if actual is not None and isinstance(expected, (str, int, float, bool)):
+                    if actual != expected:
+                        return False
+        return True
+
+    def _correlate_queue_action(self, actions: Any, intent: Intent) -> str | None:
+        """Return an unowned queue ID whose entity/action identifies ``intent``."""
+
+        matches: list[str] = []
+        fallback: list[str] = []
+        for record, inherited_entity_id in self._queue_records(actions):
+            action_id = record.get("action_id", record.get("id"))
+            if not isinstance(action_id, str):
+                continue
+            owner = self._by_action_id.get(action_id)
+            if owner is not None and owner is not intent:
+                continue
+            entity_keys = (
+                ("drone_id", "entity_id")
+                if intent.entity_kind is EntityKind.DRONE
+                else ("building_id", "entity_id")
+            )
+            entity_id = next(
+                (record[key] for key in entity_keys if isinstance(record.get(key), str)),
+                inherited_entity_id,
+            )
+            if entity_id != intent.entity_id:
+                continue
+            fallback.append(action_id)
+            action = record.get("action", record.get("action_type", record.get("subject")))
+            if isinstance(action, str) and self._subject_matches_action(action, intent.action):
+                matches.append(action_id)
+        if matches:
+            return matches[0]
+        # A sole queued action for the entity is unambiguous even on servers
+        # whose queue objects omit the action name.
+        return fallback[0] if len(fallback) == 1 else None
+
+    @classmethod
+    def _queue_records(
+        cls, value: Any, inherited_entity_id: str | None = None
+    ) -> list[tuple[Mapping[str, Any], str | None]]:
+        records: list[tuple[Mapping[str, Any], str | None]] = []
+        if isinstance(value, list):
+            for item in value:
+                records.extend(cls._queue_records(item, inherited_entity_id))
+        elif isinstance(value, Mapping):
+            if isinstance(value.get("action_id", value.get("id")), str):
+                records.append((value, inherited_entity_id))
+            else:
+                for key, nested in value.items():
+                    next_entity = key if isinstance(key, str) else inherited_entity_id
+                    records.extend(cls._queue_records(nested, next_entity))
+        return records
+
+    @staticmethod
+    def _normalised_words(value: str) -> tuple[str, ...]:
+        return tuple(
+            word
+            for word in "".join(
+                char.lower() if char.isalnum() else " " for char in value
+            ).split()
+            if word
+        )
+
+    @classmethod
+    def _subject_matches_action(cls, subject: str, action: str) -> bool:
+        subject_words = list(cls._normalised_words(subject))
+        while subject_words and subject_words[-1] in {
+            "queued",
+            "completed",
+            "failed",
+            "rejected",
+        }:
+            subject_words.pop()
+        if subject_words[:1] == ["building"]:
+            subject_words.pop(0)
+
+        action_words = cls._normalised_words(action)
+        verb_words = cls._normalised_words(action.rsplit("/", 1)[-1])
+        subject_tuple = tuple(subject_words)
+        return bool(
+            subject_tuple
+            and (
+                subject_tuple == action_words
+                or subject_tuple == verb_words
+                or subject_tuple[: len(verb_words)] == verb_words
+                or subject_tuple[-len(verb_words) :] == verb_words
+            )
+        )
 
     def _timeout(self, intent: Intent) -> float:
         return max(0.0, float(self._ack_timeout(intent.distance)))

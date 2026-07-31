@@ -1,0 +1,180 @@
+{
+  "entity_sim": {
+    "buildings": [
+      {
+        "building_id": "cc-1",
+        "building_type": "command_center",
+        "stored_resources": {
+          "battery_materials": 35,
+          "enriched_unobtanium": 2,
+          "titanium_parts": 80
+        }
+      }
+    ],
+    "drones": [
+      {
+        "consumables": {
+          "missile_launcher": 2
+        },
+        "current_battery": 96,
+        "drone_id": "scout-1",
+        "loaded_ammo_type": null,
+        "max_battery": 120,
+        "total_weight": 30.0
+      }
+    ],
+    "research_tiers": {}
+  },
+  "snapshot_version": 1,
+  "world": {
+    "buildings": [
+      {
+        "building_id": "cc-1",
+        "building_type": "command_center",
+        "last_seen": 10,
+        "origin": [
+          0,
+          0
+        ],
+        "tiles": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            1
+          ]
+        ]
+      }
+    ],
+    "cycle": 15,
+    "drones": [
+      {
+        "direction": 2,
+        "drone_id": "scout-1",
+        "elevation": 1,
+        "last_seen": 15,
+        "q": 2,
+        "r": -1
+      }
+    ],
+    "enemy_buildings": [
+      {
+        "building_id": "enemy-turret",
+        "building_type": "laser_turret",
+        "last_seen": 13,
+        "origin": [
+          4,
+          -1
+        ],
+        "tiles": [
+          [
+            4,
+            -1
+          ]
+        ]
+      }
+    ],
+    "enemy_tracks": [
+      {
+        "drone_id": "enemy-1",
+        "equipment": [
+          "laser_cannon"
+        ],
+        "equipment_known": true,
+        "first_seen": 12,
+        "history": [
+          [
+            12,
+            4,
+            -1
+          ],
+          [
+            13,
+            4,
+            -1
+          ]
+        ],
+        "is_decoy": false,
+        "last_seen": 13,
+        "q": 4,
+        "r": -1,
+        "source": "identify",
+        "track_id": "trk1"
+      }
+    ],
+    "tiles": [
+      {
+        "building_id": "cc-1",
+        "elevation": null,
+        "has_building": true,
+        "has_drone": false,
+        "has_resource": false,
+        "last_seen": 10,
+        "q": 0,
+        "r": 0,
+        "resource_amount": null,
+        "resource_type": null,
+        "source": "status_report",
+        "terrain_type": null
+      },
+      {
+        "building_id": "cc-1",
+        "elevation": null,
+        "has_building": true,
+        "has_drone": false,
+        "has_resource": false,
+        "last_seen": 10,
+        "q": 0,
+        "r": 1,
+        "resource_amount": null,
+        "resource_type": null,
+        "source": "status_report",
+        "terrain_type": null
+      },
+      {
+        "building_id": null,
+        "elevation": 1,
+        "has_building": false,
+        "has_drone": true,
+        "has_resource": false,
+        "last_seen": 12,
+        "q": 2,
+        "r": -1,
+        "resource_amount": null,
+        "resource_type": null,
+        "source": "scan",
+        "terrain_type": 1
+      },
+      {
+        "building_id": null,
+        "elevation": 0,
+        "has_building": false,
+        "has_drone": false,
+        "has_resource": true,
+        "last_seen": 12,
+        "q": 3,
+        "r": -1,
+        "resource_amount": null,
+        "resource_type": null,
+        "source": "scan",
+        "terrain_type": 1
+      },
+      {
+        "building_id": "enemy-turret",
+        "elevation": 0,
+        "has_building": true,
+        "has_drone": false,
+        "has_resource": true,
+        "last_seen": 13,
+        "q": 4,
+        "r": -1,
+        "resource_amount": 80,
+        "resource_type": "titanium",
+        "source": "identify",
+        "terrain_type": 2
+      }
+    ]
+  }
+}

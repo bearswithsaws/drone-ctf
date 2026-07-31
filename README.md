@@ -42,6 +42,14 @@ python -m agent                 # run hello-world autonomy until interrupted
 python -m agent --duration 600  # finite 10-minute E1.7 acceptance run
 ```
 
+Recorded telemetry can be replayed through the world model and entity simulator
+and checked against a known final state:
+
+```bash
+tools/replay tests/fixtures/replay_session.jsonl \
+  --expected tests/fixtures/replay_expected.json
+```
+
 Credentials and the server URL come from environment variables
 (`DRONE_SERVER_URL`, `DRONE_USERNAME`, `DRONE_PASSWORD`, and optional
 `DRONE_ADMIN_*`) or from a gitignored `creds.txt` at the repo root.

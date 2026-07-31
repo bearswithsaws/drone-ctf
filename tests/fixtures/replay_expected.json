@@ -18,16 +18,27 @@
           "missile_launcher": 2
         },
         "current_battery": 96,
+        "current_health": 0,
         "drone_id": "scout-1",
+        "equipment": [
+          "missile_launcher"
+        ],
+        "equipment_levels": {},
+        "functional_equipment": [
+          "missile_launcher"
+        ],
         "hopper_capacity": 0,
         "loaded_ammo_type": null,
         "max_battery": 120,
+        "max_health": 0,
+        "max_shields": 0,
+        "shields": 0,
         "total_weight": 30.0
       }
     ],
     "research_tiers": {}
   },
-  "snapshot_version": 2,
+  "snapshot_version": 3,
   "world": {
     "buildings": [
       {

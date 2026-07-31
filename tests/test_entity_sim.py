@@ -94,9 +94,17 @@ def test_status_is_authoritative_and_extracts_all_stripped_fields() -> None:
                 "drone_id": "drone-1",
                 "current_battery": 3999,
                 "max_battery": 4000,
+                "current_health": 399,
+                "max_health": 500,
+                "shields": 20,
+                "max_shields": 50,
                 "chassis_weight": 20,
                 "equipment": [
-                    {"equipment_type": "propulsion", "weight": 30},
+                    {
+                        "equipment_type": "propulsion",
+                        "weight": 30,
+                        "current_level": 2,
+                    },
                     {
                         "equipment_type": "armour_piercing_ammunition",
                         "weight": 10,
@@ -121,6 +129,7 @@ def test_status_is_authoritative_and_extracts_all_stripped_fields() -> None:
                         "equipment_type": "auto_cannon",
                         "weight": 20,
                         "loaded_ammo_type": "armour_piercing",
+                        "current_level": 3,
                     },
                     {
                         "equipment_type": "hopper",
@@ -151,6 +160,22 @@ def test_status_is_authoritative_and_extracts_all_stripped_fields() -> None:
     assert state.cargo == {"titanium_ore": 12}
     assert state.hopper_load == 12
     assert state.hopper_capacity == 25
+    assert state.current_health == 399
+    assert state.max_health == 500
+    assert state.health_fraction == 399 / 500
+    assert state.shields == 20
+    assert state.max_shields == 50
+    assert state.equipment == {
+        "propulsion",
+        "armour_piercing_ammunition",
+        "land_mine",
+        "decoy_beacon",
+        "howitzer_charges",
+        "auto_cannon",
+        "hopper",
+    }
+    assert state.functional_equipment == state.equipment
+    assert state.equipment_levels == {"propulsion": 2, "auto_cannon": 3}
 
 
 def test_mine_unload_and_station_charge_update_drone_projection() -> None:

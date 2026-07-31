@@ -17,8 +17,7 @@ from typing import Any
 from agent.config import Config, load_config
 from agent.logging_setup import setup_logging
 from agent.planning.controllers.hello_world import HelloWorldController
-from agent.planning.live import build_strategist
-from agent.planning.strategist import StrategistConfig
+from agent.planning.match_loop import LiveMatchStrategy
 from agent.runtime import AgentRuntime, compose_runtime
 from agent.transport.action_tracker import ActionTracker
 from agent.transport.rest import GameRest
@@ -81,6 +80,8 @@ async def _wait_for_socket(socket: GameSocket, timeout_s: float = 30.0) -> None:
 
 
 async def run(cfg: Config, *, mode: str = "play", duration_s: float | None = None) -> int:
+    if mode not in {"play", "proof"}:
+        raise ValueError("mode must be 'play' or 'proof'")
     log.info("Starting agent against %s (mode=%s)", cfg.server_url, mode)
 
     # A single pooled REST client used for everything. The reauth callback lets
@@ -99,8 +100,45 @@ async def run(cfg: Config, *, mode: str = "play", duration_s: float | None = Non
         auth = await login(rest, cfg)
         if auth is None:
             return 1
-        token, user_id = auth
+        token, _user_id = auth
         rest.set_token(token)
+
+        strategy = LiveMatchStrategy(rest, cfg) if mode == "play" else None
+
+        runtime = compose_runtime(
+            cfg,
+            rest,
+            gap_fill=lambda count: _gap_fill(rest, count),
+            tracker_factory=ActionTracker,
+            socket_factory=GameSocket,
+            strategy=strategy,
+        )
+        await runtime.start()
+        await _wait_for_socket(runtime.socket)
+
+        if strategy is not None:
+            try:
+                report = await strategy.wait_ready(timeout_s=strategy.bootstrap_timeout_s + 5)
+            except (RuntimeError, TimeoutError) as exc:
+                log.error("Autonomous bootstrap failed: %s", exc)
+                return 1
+            if not report.drone_ids or not report.building_ids:
+                log.error(
+                    "Autonomous bootstrap found %d drones and %d buildings",
+                    len(report.drone_ids),
+                    len(report.building_ids),
+                )
+                return 1
+            log.info(
+                "Autonomous planning active for %d drones and %d buildings "
+                "(%d stale actions cleared)",
+                len(report.drone_ids),
+                len(report.building_ids),
+                report.stale_actions_cleared,
+            )
+            await strategy.wait(duration_s)
+            log.info("Autonomous match loop stopped cleanly")
+            return 0
 
         drones = await rest.get("/drones")
         if not drones.ok:
@@ -114,50 +152,6 @@ async def run(cfg: Config, *, mode: str = "play", duration_s: float | None = Non
         if not drone_ids:
             log.error("No owned drones were returned by GET /drones")
             return 1
-
-        strategy = None
-        if mode == "play":
-            strategy = build_strategist(
-                rest,
-                user_id,
-                config=StrategistConfig(tick_interval_s=cfg.strategist_tick_s),
-                scoreboard_interval_s=cfg.scoreboard_poll_s,
-            )
-
-        runtime = compose_runtime(
-            cfg,
-            rest,
-            gap_fill=lambda count: _gap_fill(rest, count),
-            tracker_factory=ActionTracker,
-            socket_factory=GameSocket,
-            strategy=strategy,
-        )
-        await runtime.start()
-        await _wait_for_socket(runtime.socket)
-
-        if mode == "play":
-            # Prime the world so the strategist has drones/buildings/resources to
-            # reason about, then let the composed subsystems play until stopped.
-            report = await rest.post(
-                "/buildings/command_centre/status_report", json={"efficiency": 1.0}
-            )
-            if not report.ok:
-                log.warning(
-                    "Initial status_report request failed (%s): %s — strategist "
-                    "will wait for the first successful report",
-                    report.status,
-                    report.error_message or report.data,
-                )
-            log.info(
-                "Playing autonomously with %d known drone(s)%s",
-                len(drone_ids),
-                f" for {duration_s:g}s" if duration_s else " until interrupted",
-            )
-            if duration_s is None:
-                await asyncio.Event().wait()  # play until Ctrl-C
-            else:
-                await asyncio.sleep(duration_s)
-            return 0
 
         controller = None
         for drone_id in drone_ids:

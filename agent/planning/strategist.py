@@ -205,8 +205,17 @@ def _next_research_key(context, config: StrategistConfig) -> str | None:
     exposes completed research; otherwise the first item (base controller is
     idempotent about already-known research)."""
     completed = getattr(context, "research_completed", None)
+    tiers: Mapping[str, int] = {}
+    entity_sim = getattr(context, "entity_sim", None)
+    if entity_sim is not None:
+        candidate = getattr(entity_sim, "research_tiers", {})
+        if isinstance(candidate, Mapping):
+            tiers = candidate
     for key in config.research_order:
-        if completed is None or key not in completed:
+        target = 1 if key.startswith("unlock_") else 3
+        if completed is not None and key in completed:
+            continue
+        if tiers.get(key, 0) < target:
             return key
     return None
 

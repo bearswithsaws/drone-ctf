@@ -38,8 +38,9 @@ tests/           network-free unit tests (CI)
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest                          # network-free unit tests
-python -m agent                 # run hello-world autonomy until interrupted
-python -m agent --duration 600  # finite 10-minute E1.7 acceptance run
+python -m agent                 # run the autonomous match loop until match end/interruption
+python -m agent --duration 600  # finite 10-minute autonomous run
+python -m agent --mode proof    # explicit E1.7 hello-world transport proof
 ```
 
 Recorded telemetry can be replayed through the world model and entity simulator
@@ -59,12 +60,14 @@ The live composition records raw messages to `telemetry/live.jsonl`, restores
 and snapshots the world model in `state/world.sqlite`, and feeds each parsed
 message to action tracking, world ingest/enemy tracks, entity simulation, and
 metrics. `DRONE_TELEMETRY_PATH`, `DRONE_WORLD_DATABASE`, and `DRONE_MATCH_ID`
-override those persistence settings. The pipeliner and allocator are present
-behind a strategy boundary; `DRONE_PLANNING_ENABLED` starts the empty planning
-service, but no unfinished strategic controllers are installed by default.
+override those persistence settings. Production mode clears stale owned queues,
+runs a player-visible command-centre/status/scan sweep, polls the scoreboard,
+and continuously turns strategist tasks into miner, scout, fighter, refining,
+research, and production controller plans.
 
-The E1.7 proof controller still selects the first owned drone with a clear
-route, then repeatedly scans, drives forward three tiles, and reverses home. A
-finite `--duration` is checked between complete loops, so shutdown never leaves
-a locally submitted action in flight. Shutdown stops live producers, flushes a
-final world snapshot, closes the JSONL session, and joins every runtime task.
+In `--mode proof`, the E1.7 proof controller selects the first owned drone with
+a clear route, then repeatedly scans, drives forward three tiles, and reverses
+home. A finite `--duration` is checked between complete loops, so shutdown never
+leaves a locally submitted action in flight. Shutdown stops live producers,
+flushes a final world snapshot, closes the JSONL session, and joins every
+runtime task.

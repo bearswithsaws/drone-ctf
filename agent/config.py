@@ -138,7 +138,9 @@ def load_config(creds_path: Path | None = None) -> Config:
         admin_password=pick("DRONE_ADMIN_PASSWORD", "admin_password"),
         admin_token=pick("DRONE_ADMIN_TOKEN", "admin_token"),
         queue_depth_target=_env_int("DRONE_QUEUE_DEPTH_TARGET", 6, minimum=4, maximum=8),
+        strategist_tick_s=_env_float("DRONE_STRATEGIST_TICK_S", 1.5, minimum=0.05),
         snapshot_interval_s=_env_float("DRONE_SNAPSHOT_INTERVAL_S", 10.0, minimum=0.001),
+        scoreboard_poll_s=_env_float("DRONE_SCOREBOARD_POLL_S", 5.0, minimum=0.05),
         telemetry_path=Path(
             os.environ.get("DRONE_TELEMETRY_PATH", REPO_ROOT / "telemetry" / "live.jsonl")
         ),

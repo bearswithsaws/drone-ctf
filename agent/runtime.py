@@ -32,6 +32,7 @@ class PlanningContext:
     tracks: TrackStore
     entity_sim: EntitySim
     threat_map: ThreatMap
+    bus: EventBus
 
 
 class PlanningStrategy(Protocol):
@@ -77,6 +78,13 @@ class PlanningBoundary:
 
     async def stop(self) -> None:
         error: BaseException | None = None
+        if self.strategy is not None and self._strategy_started:
+            try:
+                await self.strategy.stop()
+            except BaseException as exc:
+                error = exc
+            finally:
+                self._strategy_started = False
         task = self._task
         if task is not None:
             try:
@@ -86,13 +94,6 @@ class PlanningBoundary:
                 error = exc
             finally:
                 self._task = None
-        if self.strategy is not None and self._strategy_started:
-            try:
-                await self.strategy.stop()
-            except BaseException as exc:
-                error = error or exc
-            finally:
-                self._strategy_started = False
         if error is not None:
             raise error
 
@@ -255,7 +256,7 @@ def compose_runtime(
     )
     pipeliner = Pipeliner(rest, tracker, target_depth=config.queue_depth_target)
     allocator: TaskAllocator[Any] = TaskAllocator()
-    context = PlanningContext(allocator, pipeliner, world, tracks, entity_sim, threat_map)
+    context = PlanningContext(allocator, pipeliner, world, tracks, entity_sim, threat_map, bus)
     planning = PlanningBoundary(
         context,
         enabled=config.planning_enabled or strategy is not None,

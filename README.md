@@ -1,1 +1,47 @@
 # drone-ctf
+
+Autonomous competitive client for the **Drone Battles** hex-grid RTS.
+
+Every team in the competition starts from the same seed client
+(`drone-battle-client`) — a manual remote control with full API coverage but no
+automation. This project builds an autonomous agent that outperforms those
+derivatives through superhuman action-queue throughput, a loss-immune command
+loop, persistent world memory, threat-aware pathing, and pre-match empirical
+calibration on a private server.
+
+- **Architecture:** [`docs/design.md`](docs/design.md)
+- **Work tracking:** GitHub Issues grouped into milestones **E1–E9** (epics).
+- **Strategy in one line:** keep the seed's knowledge (hex math, cost tables,
+  message semantics), throw away its plumbing, add the intelligence it lacks —
+  economy autopilot, planning/allocator, combat micro, and a commander API that
+  the `control-plane` 3D UI drives.
+
+## Layout
+
+```
+agent/           Python agent core (asyncio)
+  transport/     REST + Socket.IO + ActionTracker
+  rules/         pure game-rule functions (ported from the seed client)
+  sim/           local simulation of server-stripped state
+  world/         world model, enemy tracks, threat map, persistence
+  planning/      strategist, allocator, controllers, pipeliner, pathfinding
+  commander/     FastAPI + Socket.IO facade for the UI
+  telemetry/     recorder + metrics
+packages/contract/  versioned TS types shared with control-plane
+tools/           calibrate/ (private-match scripts), replay/ (jsonl harness)
+tests/           network-free unit tests (CI)
+```
+
+## Quick start
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+pytest                 # network-free unit tests
+python -m agent        # authenticate against the server and start
+```
+
+Credentials and the server URL come from environment variables
+(`DRONE_SERVER_URL`, `DRONE_USERNAME`, `DRONE_PASSWORD`, and optional
+`DRONE_ADMIN_*`) or from a gitignored `creds.txt` at the repo root.
+**`creds.txt` is never committed.**

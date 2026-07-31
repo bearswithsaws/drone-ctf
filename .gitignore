@@ -1,0 +1,24 @@
+# Secrets — never commit
+creds.txt
+*.creds
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+
+# Local runtime artifacts
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+telemetry/*.jsonl
+*.log
+
+# Node (packages/contract)
+node_modules/

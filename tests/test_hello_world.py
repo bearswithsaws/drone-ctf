@@ -26,6 +26,7 @@ class FakeIntent:
     action_id: str = "server-action"
     attempts: int = 1
     inferred_terminal: bool = False
+    last_message: dict[str, Any] | None = None
 
     @property
     def terminal(self) -> bool:
@@ -33,8 +34,11 @@ class FakeIntent:
 
 
 class FakeTracker:
-    def __init__(self, outcomes: list[IntentState]) -> None:
+    def __init__(
+        self, outcomes: list[IntentState], messages: list[dict[str, Any]] | None = None
+    ) -> None:
         self.outcomes = iter(outcomes)
+        self.messages = iter(messages or [])
         self.submissions: list[dict[str, Any]] = []
         self.intents: dict[str, FakeIntent] = {}
 
@@ -51,6 +55,8 @@ class FakeTracker:
     ) -> FakeIntent:
         assert precondition()
         intent = FakeIntent(local_id, next(self.outcomes))
+        if self.messages is not None:
+            intent.last_message = next(self.messages, None)
         self.intents[local_id] = intent
         self.submissions.append(
             {
@@ -66,6 +72,29 @@ class FakeTracker:
 
     def get(self, local_id: str) -> FakeIntent | None:
         return self.intents.get(local_id)
+
+
+def status_message(direction: int) -> dict[str, Any]:
+    return {"details": {"status": {"direction": direction}}}
+
+
+def scan_message(*, blocked: tuple[int, int] | None = None) -> dict[str, Any]:
+    coordinates = {(1, -1), (2, -1), (3, -2), (1, 0), (3, -1)}
+    return {
+        "details": {
+            "scan_data": {
+                "tiles": [
+                    {
+                        "coordinates": list(coord),
+                        "terrain_type": 1,
+                        "has_building": coord == blocked,
+                        "has_drone": False,
+                    }
+                    for coord in coordinates
+                ]
+            }
+        }
+    }
 
 
 @dataclass
@@ -98,12 +127,17 @@ class CompletingRest:
                     "details": {"cycles_required": 1},
                 },
             )
+            details: dict[str, Any] = {"success": True}
+            if path.endswith("/status"):
+                details["status"] = {"direction": 0}
+            elif path.endswith("/sensors/scan"):
+                details.update(scan_message()["details"])
             await self.bus.publish(
                 TOPIC_MESSAGE,
                 {
                     "message_type": "action_completed",
                     "action_id": action_id,
-                    "details": {"success": True},
+                    "details": details,
                 },
             )
 
@@ -116,9 +150,13 @@ class CompletingRest:
 
 
 async def test_scan_three_tiles_and_return_are_all_terminal_and_sequential() -> None:
-    tracker = FakeTracker([IntentState.COMPLETED] * 7)
+    tracker = FakeTracker(
+        [IntentState.COMPLETED] * 9,
+        [status_message(0), scan_message()],
+    )
     controller = HelloWorldController(tracker, "drone-7")  # type: ignore[arg-type]
 
+    assert await controller.prepare()
     result = await controller.run_once()
 
     assert result.scan_state is IntentState.COMPLETED
@@ -127,6 +165,7 @@ async def test_scan_three_tiles_and_return_are_all_terminal_and_sequential() -> 
     assert result.returned
     assert controller.displacement == 0
     assert [submission["action"] for submission in tracker.submissions] == [
+        "status",
         "sensors/scan",
         "propulsion/drive",
         "propulsion/drive",
@@ -136,6 +175,7 @@ async def test_scan_three_tiles_and_return_are_all_terminal_and_sequential() -> 
         "propulsion/drive",
     ]
     assert [submission["payload"].get("direction") for submission in tracker.submissions] == [
+        None,
         None,
         1,
         1,
@@ -147,13 +187,27 @@ async def test_scan_three_tiles_and_return_are_all_terminal_and_sequential() -> 
     assert [submission["distance"] for submission in tracker.submissions] == [
         0.0,
         0.0,
+        0.0,
         1.0,
         2.0,
         3.0,
         2.0,
         1.0,
     ]
-    assert len({submission["local_id"] for submission in tracker.submissions}) == 7
+    assert len({submission["local_id"] for submission in tracker.submissions}) == 8
+
+
+async def test_prepare_rejects_a_building_on_either_parity_variant() -> None:
+    tracker = FakeTracker(
+        [IntentState.COMPLETED, IntentState.COMPLETED],
+        [status_message(0), scan_message(blocked=(1, -1))],
+    )
+
+    assert not await HelloWorldController(tracker, "blocked").prepare()  # type: ignore[arg-type]
+    assert [submission["action"] for submission in tracker.submissions] == [
+        "status",
+        "sensors/scan",
+    ]
 
 
 async def test_real_action_tracker_observes_queued_and_completed_for_every_action() -> None:
@@ -168,12 +222,13 @@ async def test_real_action_tracker_observes_queued_and_completed_for_every_actio
     bus.subscribe(TOPIC_ACTION_LIFECYCLE, capture)
     controller = HelloWorldController(tracker, "drone-7", poll_interval_s=0.001)
 
+    assert await controller.prepare()
     result = await controller.run_once()
     await asyncio.gather(*rest.tasks)
 
     assert result.returned
-    assert len(rest.posts) == 7
-    assert len(lifecycle) == 7
+    assert len(rest.posts) == 8
+    assert len(lifecycle) == 8
     assert all(IntentState.QUEUED in states for states in lifecycle.values())
     assert all(states[-1] is IntentState.COMPLETED for states in lifecycle.values())
     assert all(intent.terminal for intent in tracker.intents.values())
@@ -187,9 +242,11 @@ async def test_failed_outbound_action_returns_only_successful_distance() -> None
             IntentState.COMPLETED,  # first outbound tile
             IntentState.FAILED,  # second outbound tile
             IntentState.COMPLETED,  # reverse the one successful tile
-        ]
+        ],
+        [scan_message()],
     )
     controller = HelloWorldController(tracker, "drone-7")  # type: ignore[arg-type]
+    controller._direction = 0
 
     result = await controller.run_once()
 
@@ -214,9 +271,11 @@ async def test_failed_return_is_retried_before_another_scan() -> None:
             IntentState.COMPLETED,
             IntentState.FAILED,  # first return attempt
             IntentState.FAILED,  # next loop's recovery attempt
-        ]
+        ],
+        [scan_message()],
     )
     controller = HelloWorldController(tracker, "drone-7")  # type: ignore[arg-type]
+    controller._direction = 0
 
     first = await controller.run_once()
     second = await controller.run_once()

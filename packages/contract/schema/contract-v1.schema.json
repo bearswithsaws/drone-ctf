@@ -1,0 +1,1082 @@
+{
+  "$defs": {
+    "Alert": {
+      "additionalProperties": false,
+      "properties": {
+        "alert_id": {
+          "title": "Alert Id",
+          "type": "string"
+        },
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "coordinate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Coordinate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "cycle": {
+          "minimum": 0,
+          "title": "Cycle",
+          "type": "integer"
+        },
+        "entity_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Entity Ids",
+          "type": "array"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "critical"
+          ],
+          "title": "Severity",
+          "type": "string"
+        }
+      },
+      "required": [
+        "alert_id",
+        "severity",
+        "code",
+        "message",
+        "cycle",
+        "created_at",
+        "entity_ids",
+        "coordinate"
+      ],
+      "title": "Alert",
+      "type": "object"
+    },
+    "AlertEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/Alert"
+        },
+        "event": {
+          "const": "alert",
+          "title": "Event",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event",
+        "data"
+      ],
+      "title": "AlertEvent",
+      "type": "object"
+    },
+    "BuildingState": {
+      "additionalProperties": false,
+      "properties": {
+        "allegiance": {
+          "enum": [
+            "friendly",
+            "enemy"
+          ],
+          "title": "Allegiance",
+          "type": "string"
+        },
+        "building_id": {
+          "title": "Building Id",
+          "type": "string"
+        },
+        "building_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Building Type"
+        },
+        "last_seen": {
+          "minimum": 0,
+          "title": "Last Seen",
+          "type": "integer"
+        },
+        "origin": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Coordinate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tiles": {
+          "items": {
+            "$ref": "#/$defs/Coordinate"
+          },
+          "title": "Tiles",
+          "type": "array"
+        }
+      },
+      "required": [
+        "building_id",
+        "building_type",
+        "allegiance",
+        "origin",
+        "tiles",
+        "last_seen"
+      ],
+      "title": "BuildingState",
+      "type": "object"
+    },
+    "BuildingUpsert": {
+      "additionalProperties": false,
+      "properties": {
+        "building": {
+          "$ref": "#/$defs/BuildingState"
+        },
+        "type": {
+          "const": "building_upsert",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "building"
+      ],
+      "title": "BuildingUpsert",
+      "type": "object"
+    },
+    "Coordinate": {
+      "additionalProperties": false,
+      "properties": {
+        "q": {
+          "title": "Q",
+          "type": "integer"
+        },
+        "r": {
+          "title": "R",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "q",
+        "r"
+      ],
+      "title": "Coordinate",
+      "type": "object"
+    },
+    "DroneState": {
+      "additionalProperties": false,
+      "properties": {
+        "coordinate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Coordinate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "direction": {
+          "anyOf": [
+            {
+              "maximum": 5,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Direction"
+        },
+        "drone_id": {
+          "title": "Drone Id",
+          "type": "string"
+        },
+        "elevation": {
+          "title": "Elevation",
+          "type": "integer"
+        },
+        "last_seen": {
+          "minimum": 0,
+          "title": "Last Seen",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "drone_id",
+        "coordinate",
+        "direction",
+        "elevation",
+        "last_seen"
+      ],
+      "title": "DroneState",
+      "type": "object"
+    },
+    "DroneUpsert": {
+      "additionalProperties": false,
+      "properties": {
+        "drone": {
+          "$ref": "#/$defs/DroneState"
+        },
+        "type": {
+          "const": "drone_upsert",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "drone"
+      ],
+      "title": "DroneUpsert",
+      "type": "object"
+    },
+    "EnemyTrackState": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "coordinate": {
+          "$ref": "#/$defs/Coordinate"
+        },
+        "drone_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Drone Id"
+        },
+        "equipment": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Equipment",
+          "type": "array"
+        },
+        "equipment_known": {
+          "title": "Equipment Known",
+          "type": "boolean"
+        },
+        "first_seen": {
+          "minimum": 0,
+          "title": "First Seen",
+          "type": "integer"
+        },
+        "is_decoy": {
+          "title": "Is Decoy",
+          "type": "boolean"
+        },
+        "last_seen": {
+          "minimum": 0,
+          "title": "Last Seen",
+          "type": "integer"
+        },
+        "predicted_coordinate": {
+          "$ref": "#/$defs/Coordinate"
+        },
+        "source": {
+          "enum": [
+            "scan",
+            "identify",
+            "seismic",
+            "df_antenna"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "track_id": {
+          "title": "Track Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "track_id",
+        "drone_id",
+        "coordinate",
+        "predicted_coordinate",
+        "first_seen",
+        "last_seen",
+        "source",
+        "confidence",
+        "is_decoy",
+        "equipment",
+        "equipment_known"
+      ],
+      "title": "EnemyTrackState",
+      "type": "object"
+    },
+    "EnemyTrackUpsert": {
+      "additionalProperties": false,
+      "properties": {
+        "enemy_track": {
+          "$ref": "#/$defs/EnemyTrackState"
+        },
+        "type": {
+          "const": "enemy_track_upsert",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "enemy_track"
+      ],
+      "title": "EnemyTrackUpsert",
+      "type": "object"
+    },
+    "EntityOverrideDirective": {
+      "additionalProperties": false,
+      "properties": {
+        "directive_id": {
+          "title": "Directive Id",
+          "type": "string"
+        },
+        "entity_id": {
+          "title": "Entity Id",
+          "type": "string"
+        },
+        "issued_at": {
+          "format": "date-time",
+          "title": "Issued At",
+          "type": "string"
+        },
+        "kind": {
+          "const": "entity_override",
+          "title": "Kind",
+          "type": "string"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "ttl_seconds": {
+          "exclusiveMinimum": 0,
+          "title": "Ttl Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "directive_id",
+        "issued_at",
+        "ttl_seconds",
+        "kind",
+        "entity_id",
+        "task_id"
+      ],
+      "title": "EntityOverrideDirective",
+      "type": "object"
+    },
+    "EntityRemoved": {
+      "additionalProperties": false,
+      "properties": {
+        "entity_id": {
+          "title": "Entity Id",
+          "type": "string"
+        },
+        "entity_type": {
+          "enum": [
+            "drone",
+            "building",
+            "enemy_track"
+          ],
+          "title": "Entity Type",
+          "type": "string"
+        },
+        "type": {
+          "const": "entity_removed",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "entity_type",
+        "entity_id"
+      ],
+      "title": "EntityRemoved",
+      "type": "object"
+    },
+    "PlanAssignment": {
+      "additionalProperties": false,
+      "properties": {
+        "entity_id": {
+          "title": "Entity Id",
+          "type": "string"
+        },
+        "fitness": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Fitness"
+        },
+        "pinned": {
+          "title": "Pinned",
+          "type": "boolean"
+        },
+        "retained": {
+          "title": "Retained",
+          "type": "boolean"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "entity_id",
+        "task_id",
+        "fitness",
+        "pinned",
+        "retained"
+      ],
+      "title": "PlanAssignment",
+      "type": "object"
+    },
+    "PlanChangedEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/PlanSnapshot"
+        },
+        "event": {
+          "const": "plan_changed",
+          "title": "Event",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event",
+        "data"
+      ],
+      "title": "PlanChangedEvent",
+      "type": "object"
+    },
+    "PlanSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "assignments": {
+          "items": {
+            "$ref": "#/$defs/PlanAssignment"
+          },
+          "title": "Assignments",
+          "type": "array"
+        },
+        "contract_version": {
+          "const": "1.0",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "cycle": {
+          "minimum": 0,
+          "title": "Cycle",
+          "type": "integer"
+        },
+        "paths": {
+          "items": {
+            "$ref": "#/$defs/PlannedPath"
+          },
+          "title": "Paths",
+          "type": "array"
+        },
+        "sequence": {
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/PlanTask"
+          },
+          "title": "Tasks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "contract_version",
+        "sequence",
+        "cycle",
+        "tasks",
+        "assignments",
+        "paths"
+      ],
+      "title": "PlanSnapshot",
+      "type": "object"
+    },
+    "PlanTask": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "max_assignees": {
+          "minimum": 1,
+          "title": "Max Assignees",
+          "type": "integer"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Parameters",
+          "type": "object"
+        },
+        "priority": {
+          "exclusiveMinimum": 0.0,
+          "title": "Priority",
+          "type": "number"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_id",
+        "kind",
+        "priority",
+        "max_assignees",
+        "parameters"
+      ],
+      "title": "PlanTask",
+      "type": "object"
+    },
+    "PlannedPath": {
+      "additionalProperties": false,
+      "properties": {
+        "coordinates": {
+          "items": {
+            "$ref": "#/$defs/Coordinate"
+          },
+          "title": "Coordinates",
+          "type": "array"
+        },
+        "entity_id": {
+          "title": "Entity Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "entity_id",
+        "coordinates"
+      ],
+      "title": "PlannedPath",
+      "type": "object"
+    },
+    "SquadOrderDirective": {
+      "additionalProperties": false,
+      "properties": {
+        "directive_id": {
+          "title": "Directive Id",
+          "type": "string"
+        },
+        "issued_at": {
+          "format": "date-time",
+          "title": "Issued At",
+          "type": "string"
+        },
+        "kind": {
+          "const": "squad_order",
+          "title": "Kind",
+          "type": "string"
+        },
+        "order": {
+          "enum": [
+            "move",
+            "hold",
+            "mine",
+            "scout",
+            "escort",
+            "strike",
+            "lay_mines",
+            "deploy_repeater"
+          ],
+          "title": "Order",
+          "type": "string"
+        },
+        "squad_id": {
+          "title": "Squad Id",
+          "type": "string"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Coordinate"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Target"
+        },
+        "ttl_seconds": {
+          "exclusiveMinimum": 0,
+          "title": "Ttl Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "directive_id",
+        "issued_at",
+        "ttl_seconds",
+        "kind",
+        "squad_id",
+        "order",
+        "target"
+      ],
+      "title": "SquadOrderDirective",
+      "type": "object"
+    },
+    "StanceDirective": {
+      "additionalProperties": false,
+      "properties": {
+        "directive_id": {
+          "title": "Directive Id",
+          "type": "string"
+        },
+        "issued_at": {
+          "format": "date-time",
+          "title": "Issued At",
+          "type": "string"
+        },
+        "kind": {
+          "const": "stance",
+          "title": "Kind",
+          "type": "string"
+        },
+        "stance": {
+          "enum": [
+            "aggressive",
+            "balanced",
+            "defensive",
+            "retreat"
+          ],
+          "title": "Stance",
+          "type": "string"
+        },
+        "ttl_seconds": {
+          "exclusiveMinimum": 0,
+          "title": "Ttl Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "directive_id",
+        "issued_at",
+        "ttl_seconds",
+        "kind",
+        "stance"
+      ],
+      "title": "StanceDirective",
+      "type": "object"
+    },
+    "StateSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "buildings": {
+          "items": {
+            "$ref": "#/$defs/BuildingState"
+          },
+          "title": "Buildings",
+          "type": "array"
+        },
+        "contract_version": {
+          "const": "1.0",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "cycle": {
+          "minimum": 0,
+          "title": "Cycle",
+          "type": "integer"
+        },
+        "drones": {
+          "items": {
+            "$ref": "#/$defs/DroneState"
+          },
+          "title": "Drones",
+          "type": "array"
+        },
+        "enemy_tracks": {
+          "items": {
+            "$ref": "#/$defs/EnemyTrackState"
+          },
+          "title": "Enemy Tracks",
+          "type": "array"
+        },
+        "generated_at": {
+          "format": "date-time",
+          "title": "Generated At",
+          "type": "string"
+        },
+        "sequence": {
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "tiles": {
+          "items": {
+            "$ref": "#/$defs/TileState"
+          },
+          "title": "Tiles",
+          "type": "array"
+        }
+      },
+      "required": [
+        "contract_version",
+        "sequence",
+        "cycle",
+        "generated_at",
+        "tiles",
+        "drones",
+        "buildings",
+        "enemy_tracks"
+      ],
+      "title": "StateSnapshot",
+      "type": "object"
+    },
+    "TileRemoved": {
+      "additionalProperties": false,
+      "properties": {
+        "coordinate": {
+          "$ref": "#/$defs/Coordinate"
+        },
+        "type": {
+          "const": "tile_removed",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "coordinate"
+      ],
+      "title": "TileRemoved",
+      "type": "object"
+    },
+    "TileState": {
+      "additionalProperties": false,
+      "properties": {
+        "building_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Building Id"
+        },
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "coordinate": {
+          "$ref": "#/$defs/Coordinate"
+        },
+        "elevation": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Elevation"
+        },
+        "has_building": {
+          "title": "Has Building",
+          "type": "boolean"
+        },
+        "has_drone": {
+          "title": "Has Drone",
+          "type": "boolean"
+        },
+        "has_resource": {
+          "title": "Has Resource",
+          "type": "boolean"
+        },
+        "last_seen": {
+          "minimum": 0,
+          "title": "Last Seen",
+          "type": "integer"
+        },
+        "resource_amount": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Resource Amount"
+        },
+        "resource_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Resource Type"
+        },
+        "source": {
+          "enum": [
+            "scan",
+            "identify",
+            "status_report",
+            "admin"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "terrain_type": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Terrain Type"
+        }
+      },
+      "required": [
+        "coordinate",
+        "terrain_type",
+        "elevation",
+        "has_resource",
+        "resource_type",
+        "resource_amount",
+        "has_building",
+        "building_id",
+        "has_drone",
+        "last_seen",
+        "source",
+        "confidence"
+      ],
+      "title": "TileState",
+      "type": "object"
+    },
+    "TileUpsert": {
+      "additionalProperties": false,
+      "properties": {
+        "tile": {
+          "$ref": "#/$defs/TileState"
+        },
+        "type": {
+          "const": "tile_upsert",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "tile"
+      ],
+      "title": "TileUpsert",
+      "type": "object"
+    },
+    "WorldDiff": {
+      "additionalProperties": false,
+      "properties": {
+        "changes": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "building_upsert": "#/$defs/BuildingUpsert",
+                "drone_upsert": "#/$defs/DroneUpsert",
+                "enemy_track_upsert": "#/$defs/EnemyTrackUpsert",
+                "entity_removed": "#/$defs/EntityRemoved",
+                "tile_removed": "#/$defs/TileRemoved",
+                "tile_upsert": "#/$defs/TileUpsert"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/TileUpsert"
+              },
+              {
+                "$ref": "#/$defs/DroneUpsert"
+              },
+              {
+                "$ref": "#/$defs/BuildingUpsert"
+              },
+              {
+                "$ref": "#/$defs/EnemyTrackUpsert"
+              },
+              {
+                "$ref": "#/$defs/TileRemoved"
+              },
+              {
+                "$ref": "#/$defs/EntityRemoved"
+              }
+            ]
+          },
+          "title": "Changes",
+          "type": "array"
+        },
+        "contract_version": {
+          "const": "1.0",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "cycle": {
+          "minimum": 0,
+          "title": "Cycle",
+          "type": "integer"
+        },
+        "sequence": {
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "contract_version",
+        "sequence",
+        "cycle",
+        "changes"
+      ],
+      "title": "WorldDiff",
+      "type": "object"
+    },
+    "WorldDiffEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/WorldDiff"
+        },
+        "event": {
+          "const": "world_diff",
+          "title": "Event",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event",
+        "data"
+      ],
+      "title": "WorldDiffEvent",
+      "type": "object"
+    }
+  },
+  "$id": "https://drone-ctf.dev/schemas/commander-contract-1.0.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/StateSnapshot"
+    },
+    {
+      "$ref": "#/$defs/WorldDiff"
+    },
+    {
+      "$ref": "#/$defs/PlanSnapshot"
+    },
+    {
+      "discriminator": {
+        "mapping": {
+          "entity_override": "#/$defs/EntityOverrideDirective",
+          "squad_order": "#/$defs/SquadOrderDirective",
+          "stance": "#/$defs/StanceDirective"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/StanceDirective"
+        },
+        {
+          "$ref": "#/$defs/SquadOrderDirective"
+        },
+        {
+          "$ref": "#/$defs/EntityOverrideDirective"
+        }
+      ]
+    },
+    {
+      "discriminator": {
+        "mapping": {
+          "alert": "#/$defs/AlertEvent",
+          "plan_changed": "#/$defs/PlanChangedEvent",
+          "world_diff": "#/$defs/WorldDiffEvent"
+        },
+        "propertyName": "event"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/WorldDiffEvent"
+        },
+        {
+          "$ref": "#/$defs/PlanChangedEvent"
+        },
+        {
+          "$ref": "#/$defs/AlertEvent"
+        }
+      ]
+    }
+  ],
+  "description": "JSON-Schema root that includes every public v1 contract definition.",
+  "title": "Drone CTF Commander Contract v1"
+}

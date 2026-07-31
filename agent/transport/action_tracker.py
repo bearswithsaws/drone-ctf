@@ -30,6 +30,7 @@ log = logging.getLogger("agent.transport.action_tracker")
 
 TOPIC_ACTION_LIFECYCLE = "action.lifecycle"
 TOPIC_ACTION_LOSS = "action.loss"
+TOPIC_ACTION_SUBMITTED = "action.submitted"
 
 _QUEUED_MESSAGE_TYPES = {"action_queued", "building_action_queued"}
 _COMPLETED_MESSAGE_TYPES = {"action_completed", "building_action_completed"}
@@ -150,7 +151,28 @@ class ActionLossEvent:
     timestamp: float
 
 
-PendingEvent = tuple[str, ActionLifecycleEvent | ActionLossEvent]
+@dataclass(frozen=True)
+class ActionSubmittedEvent:
+    """The exact command sent for one action attempt.
+
+    Unlike a lifecycle event, this includes the endpoint and request body so a
+    telemetry recording contains enough information to audit or replay agent
+    decisions.  Retries produce another event with the same ``local_id`` and a
+    higher ``attempt``.
+    """
+
+    local_id: str
+    entity_kind: EntityKind
+    entity_id: str
+    action: str
+    endpoint: str
+    payload: dict[str, Any]
+    distance: float
+    attempt: int
+    timestamp: float
+
+
+PendingEvent = tuple[str, ActionLifecycleEvent | ActionLossEvent | ActionSubmittedEvent]
 
 
 class ActionTracker:
@@ -377,6 +399,7 @@ class ActionTracker:
         intent.submitted_at = self._clock()
         intent.deadline_at = intent.submitted_at + self._timeout(intent)
         self._record_lifecycle(pending, intent, previous, reason)
+        self._record_submission(pending, intent)
 
         try:
             result = await self._rest.post(intent.endpoint, json=dict(intent.payload))
@@ -612,6 +635,24 @@ class ActionTracker:
                     distance=intent.distance,
                     attempt=intent.attempts,
                     timestamp=self._clock(),
+                ),
+            )
+        )
+
+    def _record_submission(self, pending: list[PendingEvent], intent: Intent) -> None:
+        pending.append(
+            (
+                TOPIC_ACTION_SUBMITTED,
+                ActionSubmittedEvent(
+                    local_id=intent.local_id,
+                    entity_kind=intent.entity_kind,
+                    entity_id=intent.entity_id,
+                    action=intent.action,
+                    endpoint=intent.endpoint,
+                    payload=dict(intent.payload),
+                    distance=intent.distance,
+                    attempt=intent.attempts,
+                    timestamp=float(intent.submitted_at),
                 ),
             )
         )

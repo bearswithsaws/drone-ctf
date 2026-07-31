@@ -148,37 +148,44 @@ class GameSocket:
 
     # --- ingest / dedup / gap-fill ---
 
-    async def _ingest(self, msg: Any, *, backfilled: bool) -> None:
+    async def _ingest(self, msg: Any, *, backfilled: bool) -> bool:
         """De-dup by message_id and publish to the bus. Messages without an id
         always pass through (can't be de-duped, better to double-deliver than drop)."""
         if not isinstance(msg, dict):
             log.warning("Ignoring non-dict socket message: %r", msg)
-            return
+            return False
         mid = msg.get("message_id")
         if mid is not None:
             if mid in self._seen:
-                return
+                return False
             self._seen[mid] = None
             if len(self._seen) > self._seen_cap:
                 self._seen.popitem(last=False)  # evict oldest
         if backfilled:
             msg = {**msg, "_backfilled": True}
         await self._bus.publish(TOPIC_MESSAGE, msg)
+        return True
 
-    async def _do_gap_fill(self) -> None:
+    async def resync(self, *, strict: bool = False) -> int:
+        """Replay the recent REST inbox through normal de-duplication.
+
+        Startup calls this in strict mode so reconciliation can report a
+        degraded result. Reconnects use the default best-effort mode and keep
+        retrying the socket even when the REST inbox is temporarily down.
+        """
+
         if self._gap_fill is None:
-            return
+            return 0
         try:
             messages = await self._gap_fill(self._gap_fill_count)
         except Exception as exc:
+            if strict:
+                raise
             log.warning("Gap-fill request failed: %s", exc)
-            return
+            return 0
         new = 0
         for m in messages:
-            before = len(self._seen)
-            await self._ingest(m, backfilled=True)
-            if len(self._seen) != before:
-                new += 1
+            new += int(await self._ingest(m, backfilled=True))
         if new:
             log.info("Gap-fill replayed %d missed message(s) of %d fetched", new, len(messages))
         # The inbox caps at 100; a full page means we may have lost older ones.
@@ -188,3 +195,9 @@ class GameSocket:
                 "server's 100-message cap may have been lost during downtime.",
                 len(messages),
             )
+        return new
+
+    async def _do_gap_fill(self) -> int:
+        """Backward-compatible best-effort reconnect gap-fill."""
+
+        return await self.resync()

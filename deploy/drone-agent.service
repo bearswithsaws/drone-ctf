@@ -1,0 +1,32 @@
+[Unit]
+Description=Drone Battles autonomous agent
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=20
+
+[Service]
+Type=simple
+User=drone-agent
+Group=drone-agent
+WorkingDirectory=/opt/drone-ctf
+EnvironmentFile=/etc/drone-agent.env
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=DRONE_WORLD_DATABASE=/var/lib/drone-agent/world.sqlite
+Environment=DRONE_TELEMETRY_PATH=/var/log/drone-agent/live.jsonl
+ExecStart=/opt/drone-ctf/.venv/bin/python -m agent
+Restart=on-failure
+RestartSec=2s
+KillSignal=SIGINT
+TimeoutStopSec=20s
+StateDirectory=drone-agent
+LogsDirectory=drone-agent
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target

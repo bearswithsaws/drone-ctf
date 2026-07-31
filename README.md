@@ -68,3 +68,11 @@ route, then repeatedly scans, drives forward three tiles, and reverses home. A
 finite `--duration` is checked between complete loops, so shutdown never leaves
 a locally submitted action in flight. Shutdown stops live producers, flushes a
 final world snapshot, closes the JSONL session, and joins every runtime task.
+
+For unattended operation, [`deploy/drone-agent.service`](deploy/drone-agent.service)
+restarts the process after a crash or `SIGKILL`. Long-running asyncio services
+are also supervised independently with bounded exponential backoff, and every
+process start restores its snapshot, gap-fills messages, reads both action
+queues, and requests an authoritative command-center status report before
+planning begins. See [`docs/operations.md`](docs/operations.md) for installation
+and the under-30-second restart acceptance check.

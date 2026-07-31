@@ -11,7 +11,9 @@ from typing import Any, Protocol
 from agent.bus import EventBus
 from agent.config import Config
 from agent.planning import Pipeliner, TaskAllocator
+from agent.resync import StartupResync
 from agent.sim import EntitySim
+from agent.supervisor import TaskFactory, TaskSupervisor
 from agent.telemetry.metrics import Metrics
 from agent.telemetry.recorder import JsonlRecorder
 from agent.transport.action_tracker import ActionTracker
@@ -62,15 +64,22 @@ class PlanningBoundary:
     def task(self) -> asyncio.Task[None] | None:
         return self._task
 
-    async def start(self) -> None:
+    async def start(
+        self,
+        *,
+        task_starter: Callable[[str, TaskFactory], asyncio.Task[None]] | None = None,
+    ) -> None:
         if not self.enabled or self._task is not None:
             return
         if self.strategy is not None:
             self._strategy_started = True
             await self.strategy.start(self.context)
-        self._task = asyncio.create_task(
-            self.context.pipeliner.run(), name="planning-pipeliner"
-        )
+        if task_starter is None:
+            self._task = asyncio.create_task(
+                self.context.pipeliner.run(), name="planning-pipeliner"
+            )
+        else:
+            self._task = task_starter("planning-pipeliner", self.context.pipeliner.run)
         # Let ``run`` initialise its stop event before a caller can immediately
         # request shutdown.
         await asyncio.sleep(0)
@@ -118,6 +127,8 @@ class AgentRuntime:
     pipeliner: Pipeliner
     allocator: TaskAllocator[Any]
     planning: PlanningBoundary
+    resync: StartupResync
+    supervisor: TaskSupervisor
     _unsubscribers: list[Callable[[], None]] = field(default_factory=list)
     _tasks: list[asyncio.Task[Any]] = field(default_factory=list)
     _started: bool = False
@@ -144,7 +155,7 @@ class AgentRuntime:
         return tasks if planning_task is None else (*tasks, planning_task)
 
     async def start(self) -> None:
-        """Restore state, start persistence, then admit live transport events."""
+        """Restore and reconcile state before admitting live autonomy."""
 
         if self._closed:
             raise RuntimeError("runtime has already been closed")
@@ -159,12 +170,13 @@ class AgentRuntime:
                     self.config.persistence_match_id,
                     self.world.cycle,
                 )
-            await self.persistence.start()
+            await self.resync.run()
             self._tasks = [
-                asyncio.create_task(self.tracker.run(), name="action-tracker"),
-                asyncio.create_task(self.socket.run(), name="game-socket"),
+                self.supervisor.start("world-persistence", self.persistence.run),
+                self.supervisor.start("action-tracker", self.tracker.run),
+                self.supervisor.start("game-socket", self.socket.run),
             ]
-            await self.planning.start()
+            await self.planning.start(task_starter=self.supervisor.start)
         except BaseException:
             await self.stop()
             raise
@@ -190,18 +202,15 @@ class AgentRuntime:
                 errors.append(exc)
                 log.exception("Runtime close operation failed")
 
+        # Mark shutdown first so normal service exits cannot be mistaken for
+        # crashes and restarted while the rest of the runtime is stopping.
+        self.supervisor.begin_shutdown()
         await attempt(self.planning.stop)
         await attempt(self.socket.stop)
         await attempt(self.tracker.stop)
-
-        if self._tasks:
-            _done, pending = await asyncio.wait(self._tasks, timeout=2.0)
-            for task in pending:
-                task.cancel()
-            await asyncio.gather(*self._tasks, return_exceptions=True)
-
         if self._started:
             await attempt(self.persistence.stop)
+        await attempt(self.supervisor.stop)
 
         for unsubscribe in self._unsubscribers:
             close(unsubscribe)
@@ -267,6 +276,15 @@ def compose_runtime(
         bus=bus,
         gap_fill=gap_fill,
     )
+    socket_resync = getattr(socket, "resync", None)
+    resync = StartupResync(
+        rest,
+        gap_fill=(lambda: socket_resync(strict=True)) if callable(socket_resync) else None,
+    )
+    supervisor = TaskSupervisor(
+        initial_backoff_s=config.restart_initial_backoff_s,
+        max_backoff_s=config.restart_max_backoff_s,
+    )
     runtime = AgentRuntime(
         config=config,
         rest=rest,
@@ -285,6 +303,8 @@ def compose_runtime(
         pipeliner=pipeliner,
         allocator=allocator,
         planning=planning,
+        resync=resync,
+        supervisor=supervisor,
     )
     runtime.attach_consumers()
     return runtime

@@ -72,6 +72,20 @@ class IdleSocket:
         self._stop.set()
 
 
+class FlakySocket(IdleSocket):
+    def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+        super().__init__()
+        self.runs = 0
+        self.recovered = asyncio.Event()
+
+    async def run(self) -> None:
+        self.runs += 1
+        if self.runs == 1:
+            raise RuntimeError("injected socket crash")
+        self.recovered.set()
+        await self._stop.wait()
+
+
 class RecordingStrategy:
     def __init__(self) -> None:
         self.context: PlanningContext | None = None
@@ -313,3 +327,22 @@ async def test_tracker_events_feed_runtime_telemetry(tmp_path: Path) -> None:
     ]
     assert [record["topic"] for record in records] == ["action.submitted"]
     assert records[0]["payload"]["local_id"] == "local-scan-1"
+
+
+async def test_runtime_supervisor_restarts_crashed_transport(tmp_path: Path) -> None:
+    runtime = compose_runtime(
+        config(tmp_path, recording="supervised.jsonl"),
+        FakeRest(),
+        socket_factory=FlakySocket,
+    )
+
+    await runtime.start()
+    await asyncio.wait_for(runtime.socket.recovered.wait(), timeout=1)
+
+    status = runtime.supervisor.status("game-socket")
+    assert runtime.socket.runs == 2
+    assert status is not None and status.restarts == 1
+
+    tasks = runtime.background_tasks
+    await runtime.stop()
+    assert tasks and all(task.done() for task in tasks)

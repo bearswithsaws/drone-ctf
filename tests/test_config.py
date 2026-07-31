@@ -61,6 +61,8 @@ def test_load_config_from_creds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
         "DRONE_PLANNING_ENABLED",
         "DRONE_QUEUE_DEPTH_TARGET",
         "DRONE_SNAPSHOT_INTERVAL_S",
+        "DRONE_RESTART_INITIAL_BACKOFF_S",
+        "DRONE_RESTART_MAX_BACKOFF_S",
     ):
         monkeypatch.delenv(var, raising=False)
     cfg = load_config(_write(tmp_path))
@@ -99,6 +101,8 @@ def test_runtime_settings_load_from_environment(
     monkeypatch.setenv("DRONE_PLANNING_ENABLED", "true")
     monkeypatch.setenv("DRONE_QUEUE_DEPTH_TARGET", "8")
     monkeypatch.setenv("DRONE_SNAPSHOT_INTERVAL_S", "2.5")
+    monkeypatch.setenv("DRONE_RESTART_INITIAL_BACKOFF_S", "0.5")
+    monkeypatch.setenv("DRONE_RESTART_MAX_BACKOFF_S", "4")
 
     cfg = load_config(_write(tmp_path))
 
@@ -108,6 +112,8 @@ def test_runtime_settings_load_from_environment(
     assert cfg.planning_enabled
     assert cfg.queue_depth_target == 8
     assert cfg.snapshot_interval_s == 2.5
+    assert cfg.restart_initial_backoff_s == 0.5
+    assert cfg.restart_max_backoff_s == 4
 
 
 @pytest.mark.parametrize(
@@ -116,6 +122,7 @@ def test_runtime_settings_load_from_environment(
         ("DRONE_PLANNING_ENABLED", "sometimes", "must be a boolean"),
         ("DRONE_QUEUE_DEPTH_TARGET", "9", "must be between 4 and 8"),
         ("DRONE_SNAPSHOT_INTERVAL_S", "0", "must be at least"),
+        ("DRONE_RESTART_INITIAL_BACKOFF_S", "0", "must be at least"),
     ],
 )
 def test_invalid_runtime_settings_fail_fast(
@@ -128,4 +135,14 @@ def test_invalid_runtime_settings_fail_fast(
     monkeypatch.setenv(name, value)
 
     with pytest.raises(RuntimeError, match=message):
+        load_config(_write(tmp_path))
+
+
+def test_restart_backoff_range_is_validated(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DRONE_RESTART_INITIAL_BACKOFF_S", "5")
+    monkeypatch.setenv("DRONE_RESTART_MAX_BACKOFF_S", "1")
+
+    with pytest.raises(RuntimeError, match="must be at least"):
         load_config(_write(tmp_path))

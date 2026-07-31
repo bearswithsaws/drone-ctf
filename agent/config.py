@@ -33,6 +33,8 @@ class Config:
     queue_depth_target: int = 6
     strategist_tick_s: float = 1.5
     snapshot_interval_s: float = 10.0
+    restart_initial_backoff_s: float = 0.25
+    restart_max_backoff_s: float = 5.0
     scoreboard_poll_s: float = 5.0
     telemetry_path: Path = REPO_ROOT / "telemetry" / "live.jsonl"
     world_database: Path = REPO_ROOT / "state" / "world.sqlite"
@@ -102,7 +104,8 @@ def load_config(creds_path: Path | None = None) -> Config:
       DRONE_ADMIN_USERNAME, DRONE_ADMIN_PASSWORD, DRONE_ADMIN_TOKEN,
       DRONE_TELEMETRY_PATH, DRONE_WORLD_DATABASE, DRONE_MATCH_ID,
       DRONE_PLANNING_ENABLED, DRONE_QUEUE_DEPTH_TARGET,
-      DRONE_SNAPSHOT_INTERVAL_S
+      DRONE_SNAPSHOT_INTERVAL_S, DRONE_RESTART_INITIAL_BACKOFF_S,
+      DRONE_RESTART_MAX_BACKOFF_S
     """
     creds = _parse_creds_file(creds_path or DEFAULT_CREDS)
 
@@ -130,6 +133,18 @@ def load_config(creds_path: Path | None = None) -> Config:
             "or creds.txt at the repo root."
         )
 
+    restart_initial_backoff_s = _env_float(
+        "DRONE_RESTART_INITIAL_BACKOFF_S", 0.25, minimum=0.001
+    )
+    restart_max_backoff_s = _env_float(
+        "DRONE_RESTART_MAX_BACKOFF_S", 5.0, minimum=0.001
+    )
+    if restart_max_backoff_s < restart_initial_backoff_s:
+        raise RuntimeError(
+            "DRONE_RESTART_MAX_BACKOFF_S must be at least "
+            "DRONE_RESTART_INITIAL_BACKOFF_S"
+        )
+
     return Config(
         server_url=server_url,  # type: ignore[arg-type]
         username=username,  # type: ignore[arg-type]
@@ -139,6 +154,8 @@ def load_config(creds_path: Path | None = None) -> Config:
         admin_token=pick("DRONE_ADMIN_TOKEN", "admin_token"),
         queue_depth_target=_env_int("DRONE_QUEUE_DEPTH_TARGET", 6, minimum=4, maximum=8),
         snapshot_interval_s=_env_float("DRONE_SNAPSHOT_INTERVAL_S", 10.0, minimum=0.001),
+        restart_initial_backoff_s=restart_initial_backoff_s,
+        restart_max_backoff_s=restart_max_backoff_s,
         telemetry_path=Path(
             os.environ.get("DRONE_TELEMETRY_PATH", REPO_ROOT / "telemetry" / "live.jsonl")
         ),

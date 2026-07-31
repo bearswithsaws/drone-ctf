@@ -100,6 +100,10 @@ class RuntimeController:
 
     def __init__(self, _tracker: object, drone_id: str) -> None:
         type(self).selected = drone_id
+        self.drone_id = drone_id
+
+    async def prepare(self) -> bool:
+        return True
 
     async def run(self, *, duration_s: float | None = None) -> int:
         type(self).duration = duration_s

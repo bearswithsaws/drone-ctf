@@ -1,8 +1,8 @@
 """Minimal end-to-end autonomy loop used to prove the transport stack.
 
-The controller deliberately knows nothing about the world model.  It selects a
-single drone supplied by the runtime, scans, drives three tiles forward, and
-then reverses every successful outbound move.  Each command is submitted via
+The controller deliberately knows nothing about the world model.  It verifies
+a straight route from live status/scan results, drives three tiles forward,
+and then reverses every successful outbound move.  Each command is submitted via
 the :class:`~agent.transport.action_tracker.ActionTracker` and the next command
 is not issued until the previous intent reaches a terminal tracked state.
 """
@@ -14,6 +14,7 @@ import logging
 from dataclasses import dataclass
 from typing import Callable
 
+from agent.rules.hexmath import get_neighbor
 from agent.transport.action_tracker import ActionTracker, EntityKind, Intent, IntentState
 
 log = logging.getLogger("agent.planning.hello_world")
@@ -61,6 +62,8 @@ class HelloWorldController:
 
         self._sequence = 0
         self._loop_number = 0
+        self._direction: int | None = None
+        self._prepared_scan: Intent | None = None
         # Relative displacement along the drone's starting heading.  It is
         # changed only after a tracked COMPLETED action, so retry
         # preconditions remain safe when a command is definitely rejected.
@@ -69,6 +72,36 @@ class HelloWorldController:
     @property
     def displacement(self) -> int:
         return self._displacement
+
+    async def prepare(self) -> bool:
+        """Verify this drone has a known-clear three-tile straight route."""
+
+        status = await self._submit_and_wait(
+            label="route-status",
+            action="status",
+            payload={},
+            precondition=lambda: self._displacement == 0,
+        )
+        direction = _status_direction(status)
+        if status.state is not IntentState.COMPLETED or direction is None:
+            log.warning("Route preflight rejected drone %s: no terminal status", self.drone_id)
+            return False
+
+        scan = await self._submit_and_wait(
+            label="route-scan",
+            action="sensors/scan",
+            payload={"level": 1},
+            precondition=lambda: self._displacement == 0,
+        )
+        if scan.state is not IntentState.COMPLETED or not _scan_clears_straight_route(
+            scan, direction, self.move_count
+        ):
+            log.warning("Route preflight rejected drone %s: no clear route", self.drone_id)
+            return False
+
+        self._direction = direction
+        self._prepared_scan = scan
+        return True
 
     async def run_once(self) -> HelloWorldResult:
         """Complete one proof loop, returning only after every action is terminal."""
@@ -88,15 +121,23 @@ class HelloWorldController:
             )
             return HelloWorldResult(IntentState.ABANDONED, 0, recovered)
 
-        scan = await self._submit_and_wait(
-            label="scan",
-            action="sensors/scan",
-            payload={"level": 1},
-            precondition=lambda: self._displacement == 0,
-        )
+        scan = self._prepared_scan
+        self._prepared_scan = None
+        if scan is None:
+            scan = await self._submit_and_wait(
+                label="scan",
+                action="sensors/scan",
+                payload={"level": 1},
+                precondition=lambda: self._displacement == 0,
+            )
         if scan.state is not IntentState.COMPLETED:
             log.warning("Hello-world loop %d scan ended as %s", loop_number, scan.state.value)
             return HelloWorldResult(scan.state, 0, 0)
+        if self._direction is None or not _scan_clears_straight_route(
+            scan, self._direction, self.move_count
+        ):
+            log.warning("Hello-world loop %d has no verified clear route", loop_number)
+            return HelloWorldResult(IntentState.ABANDONED, 0, 0)
 
         outbound = 0
         for index in range(self.move_count):
@@ -225,3 +266,45 @@ class HelloWorldController:
                     f"within {self._action_timeout:g}s"
                 )
             await asyncio.sleep(min(self._poll_interval, remaining))
+
+
+def _status_direction(intent: Intent) -> int | None:
+    details = (intent.last_message or {}).get("details")
+    status = details.get("status") if isinstance(details, dict) else None
+    direction = status.get("direction") if isinstance(status, dict) else None
+    return (
+        direction
+        if isinstance(direction, int) and not isinstance(direction, bool) and 0 <= direction < 6
+        else None
+    )
+
+
+def _scan_clears_straight_route(intent: Intent, direction: int, move_count: int) -> bool:
+    """Fail closed unless both possible odd-q path variants are known clear."""
+
+    details = (intent.last_message or {}).get("details")
+    scan_data = details.get("scan_data") if isinstance(details, dict) else None
+    raw_tiles = scan_data.get("tiles") if isinstance(scan_data, dict) else None
+    if not isinstance(raw_tiles, list):
+        return False
+
+    tiles: dict[tuple[int, int], dict[str, object]] = {}
+    for tile in raw_tiles:
+        coordinates = tile.get("coordinates") if isinstance(tile, dict) else None
+        if (
+            isinstance(coordinates, (list, tuple))
+            and len(coordinates) == 2
+            and all(isinstance(value, int) and not isinstance(value, bool) for value in coordinates)
+        ):
+            tiles[(coordinates[0], coordinates[1])] = tile
+
+    for starting_q in (0, 1):
+        q, r = starting_q, 0
+        for _ in range(move_count):
+            q, r = get_neighbor(q, r, direction)
+            tile = tiles.get((q - starting_q, r))
+            if tile is None or tile.get("terrain_type") not in {1, 2}:
+                return False
+            if tile.get("has_building") is not False or tile.get("has_drone") is not False:
+                return False
+    return True

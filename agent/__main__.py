@@ -25,9 +25,7 @@ log = logging.getLogger("agent.main")
 
 async def login(rest: GameRest, cfg: Config) -> str | None:
     """POST /auth/login and return a token, or None on failure."""
-    res = await rest.post(
-        "/auth/login", json={"username": cfg.username, "password": cfg.password}
-    )
+    res = await rest.post("/auth/login", json={"username": cfg.username, "password": cfg.password})
     if not res.ok:
         log.error("Login failed (%s): %s", res.status, res.error_message or res.data)
         return None
@@ -126,9 +124,19 @@ async def run(cfg: Config, *, duration_s: float | None = None) -> int:
         ]
 
         await _wait_for_socket(socket)
-        selected = drone_ids[0]
-        log.info("Transport ready; selected drone %s for hello-world autonomy", selected)
-        controller = HelloWorldController(tracker, selected)
+        controller = None
+        for drone_id in drone_ids:
+            candidate = HelloWorldController(tracker, drone_id)
+            if await candidate.prepare():
+                controller = candidate
+                break
+        if controller is None:
+            log.error("No owned drone has a verified clear three-tile out-and-back route")
+            return 1
+        log.info(
+            "Transport ready; selected drone %s with a verified clear route",
+            controller.drone_id,
+        )
         loops = await controller.run(duration_s=duration_s)
         log.info("Hello-world autonomy stopped cleanly after %d loop(s)", loops)
         return 0

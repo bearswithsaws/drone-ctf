@@ -41,6 +41,12 @@ from agent.planning.strategist import (
     generate_tasks,
     next_doctrine,
 )
+from agent.planning.match_loop import (
+    BootstrapReport,
+    EconomyState,
+    LiveMatchStrategy,
+    LiveStrategicInputs,
+)
 from agent.planning.tasks import (
     DeployRepeater,
     Escort,
@@ -55,7 +61,11 @@ from agent.planning.tasks import (
 )
 
 __all__ = [
+    "BootstrapReport",
     "Doctrine",
+    "EconomyState",
+    "LiveMatchStrategy",
+    "LiveStrategicInputs",
     "Posture",
     "ScoreState",
     "Strategist",

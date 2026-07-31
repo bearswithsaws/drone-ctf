@@ -165,6 +165,20 @@ async def test_build_up_generates_economy_tasks() -> None:
     assert any(isinstance(t, ProduceDrone) for t in tasks)
 
 
+async def test_task_generation_advances_past_completed_research() -> None:
+    ctx = await _base_context()
+    ctx.entity_sim = type(
+        "Sim",
+        (),
+        {"research_tiers": {"unlock_auto_cannon": 1, "baseline_drone": 3}},
+    )()
+
+    tasks = generate_tasks(Doctrine.BUILD_UP, ctx, _assessment(), StrategistConfig())
+
+    research = next(task for task in tasks if isinstance(task, Research))
+    assert research.research_key == "unlock_targeting_computer"
+
+
 async def test_all_in_drops_mining_and_strikes_enemies() -> None:
     ctx = await _base_context()
     await ctx.world.observe_tile(

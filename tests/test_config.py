@@ -60,7 +60,9 @@ def test_load_config_from_creds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
         "DRONE_MATCH_ID",
         "DRONE_PLANNING_ENABLED",
         "DRONE_QUEUE_DEPTH_TARGET",
+        "DRONE_STRATEGIST_TICK_S",
         "DRONE_SNAPSHOT_INTERVAL_S",
+        "DRONE_SCOREBOARD_POLL_S",
     ):
         monkeypatch.delenv(var, raising=False)
     cfg = load_config(_write(tmp_path))
@@ -98,7 +100,9 @@ def test_runtime_settings_load_from_environment(
     monkeypatch.setenv("DRONE_MATCH_ID", "match-77")
     monkeypatch.setenv("DRONE_PLANNING_ENABLED", "true")
     monkeypatch.setenv("DRONE_QUEUE_DEPTH_TARGET", "8")
+    monkeypatch.setenv("DRONE_STRATEGIST_TICK_S", "0.75")
     monkeypatch.setenv("DRONE_SNAPSHOT_INTERVAL_S", "2.5")
+    monkeypatch.setenv("DRONE_SCOREBOARD_POLL_S", "3")
 
     cfg = load_config(_write(tmp_path))
 
@@ -107,7 +111,9 @@ def test_runtime_settings_load_from_environment(
     assert cfg.persistence_match_id == "match-77"
     assert cfg.planning_enabled
     assert cfg.queue_depth_target == 8
+    assert cfg.strategist_tick_s == 0.75
     assert cfg.snapshot_interval_s == 2.5
+    assert cfg.scoreboard_poll_s == 3
 
 
 @pytest.mark.parametrize(
@@ -115,7 +121,9 @@ def test_runtime_settings_load_from_environment(
     [
         ("DRONE_PLANNING_ENABLED", "sometimes", "must be a boolean"),
         ("DRONE_QUEUE_DEPTH_TARGET", "9", "must be between 4 and 8"),
+        ("DRONE_STRATEGIST_TICK_S", "0", "must be at least"),
         ("DRONE_SNAPSHOT_INTERVAL_S", "0", "must be at least"),
+        ("DRONE_SCOREBOARD_POLL_S", "0", "must be at least"),
     ],
 )
 def test_invalid_runtime_settings_fail_fast(

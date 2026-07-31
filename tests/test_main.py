@@ -120,6 +120,38 @@ class RuntimeController:
         return 2
 
 
+class RuntimeAutonomousStrategy:
+    instance: "RuntimeAutonomousStrategy"
+
+    def __init__(self, _rest: object, _cfg: Config) -> None:
+        type(self).instance = self
+        self.bootstrap_timeout_s = 1.0
+        self.started = False
+        self.stopped = False
+        self.duration: float | None = None
+
+    async def start(self, _context: object) -> None:
+        self.started = True
+
+    async def stop(self) -> None:
+        self.stopped = True
+
+    async def wait_ready(self, timeout_s: float | None = None) -> object:
+        assert timeout_s == 6.0
+        return type(
+            "Report",
+            (),
+            {
+                "drone_ids": ("drone-1",),
+                "building_ids": ("cc",),
+                "stale_actions_cleared": 2,
+            },
+        )()
+
+    async def wait(self, duration_s: float | None = None) -> None:
+        self.duration = duration_s
+
+
 def test_extract_drone_ids_accepts_documented_and_legacy_shapes() -> None:
     assert _extract_drone_ids({"drone_ids": ["one", "two", "one"]}) == ["one", "two"]
     assert _extract_drone_ids({"drones": [{"drone_id": "three"}, {"id": "four"}]}) == [
@@ -181,6 +213,7 @@ async def test_play_mode_installs_strategist_and_runs_for_duration(
     monkeypatch.setattr(agent_main, "GameRest", RuntimeRest)
     monkeypatch.setattr(agent_main, "ActionTracker", RuntimeTracker)
     monkeypatch.setattr(agent_main, "GameSocket", RuntimeSocket)
+    monkeypatch.setattr(agent_main, "LiveMatchStrategy", RuntimeAutonomousStrategy)
     cfg = Config(
         "https://game.test",
         "pilot",
@@ -191,6 +224,9 @@ async def test_play_mode_installs_strategist_and_runs_for_duration(
 
     assert await agent_main.run(cfg, mode="play", duration_s=0.05) == 0
 
+    assert RuntimeAutonomousStrategy.instance.started
+    assert RuntimeAutonomousStrategy.instance.duration == 0.05
+    assert RuntimeAutonomousStrategy.instance.stopped
     assert RuntimeTracker.instance.stopped
     assert RuntimeSocket.instance.stopped
     assert RuntimeRest.instance.closed

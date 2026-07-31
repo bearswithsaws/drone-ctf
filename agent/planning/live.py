@@ -14,20 +14,25 @@ can run a playable agent:
   live research tiers; its ``output`` is already an inexhaustible factory.
 - ``produce_drone`` factory — :class:`ProductionController` expanded into a
   finite one-shot plan (the strategist re-issues it when the fleet changes).
+- ``scout_sector`` factory — :class:`ScoutController` adapted into a buffered
+  frontier leg that waits for each scan observation before replanning.
 - :func:`build_strategist` — the one call ``__main__`` makes.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import Any
 
 from agent.planning.controllers.base import BuildOrder, ProductionController, ResearchController
+from agent.planning.controllers.charger import ChargerController
 from agent.planning.controllers.miner import MinerController, MinerPhase
+from agent.planning.controllers.scout import ScoutController, ScoutPhase
 from agent.planning.pipeliner import EntityKind, PlannedAction
 from agent.planning.strategist import ScoreState, Strategist, StrategistConfig
-from agent.planning.tasks import MineLoop, ProduceDrone, Research, Task
+from agent.planning.tasks import MineLoop, ProduceDrone, Recharge, Research, ScoutSector, Task
 from agent.rules.costs import DRONE_COST
 from agent.rules.economy import UNLOCK_RULES
 
@@ -36,6 +41,45 @@ log = logging.getLogger("agent.planning.live")
 # EU cost per research tier for non-unlock upgrades / baseline_drone.
 _UPGRADE_TIER_EU = {1: 1, 2: 3, 3: 5}
 _BASELINE_TIER_EU = {1: 3, 2: 4, 3: 6}
+
+
+def _install_routed_building_plan(
+    pipeliner: Any,
+    kind: EntityKind,
+    entity_id: str,
+    actions: list[PlannedAction],
+) -> asyncio.Task[Any] | None:
+    """Register now or defer replacement until the current fill releases its lock.
+
+    Controller factories are invoked from inside ``Pipeliner._fill``. Awaiting
+    ``replace_plan`` there tries to reacquire the same lock and deadlocks the
+    entire queue maintainer, so an existing building plan is switched in a
+    separate event-loop task.
+    """
+    status_fn = getattr(pipeliner, "status", None)
+    if callable(status_fn) and status_fn(kind, entity_id) is None:
+        pipeliner.register(kind, entity_id, actions)
+        return None
+
+    task = asyncio.create_task(
+        pipeliner.replace_plan(kind, entity_id, actions),
+        name=f"route-{kind.value}-{entity_id}",
+    )
+
+    def report_failure(done: asyncio.Task[Any]) -> None:
+        if done.cancelled():
+            return
+        error = done.exception()
+        if error is not None:
+            log.error(
+                "failed installing routed building plan on %s %s",
+                kind.value,
+                entity_id,
+                exc_info=(type(error), error, error.__traceback__),
+            )
+
+    task.add_done_callback(report_failure)
+    return task
 
 
 def _research_cost(research_key: str, target_level: int) -> dict[str, int]:
@@ -138,6 +182,7 @@ class _MinerOutput:
         self._pipeliner = pipeliner
         self._buffer: list[PlannedAction] = []
         self._last_building_leg: tuple[Any, ...] | None = None
+        self._building_install: asyncio.Task[Any] | None = None
 
     async def __call__(self) -> PlannedAction | None:
         if self._buffer:
@@ -165,34 +210,111 @@ class _MinerOutput:
         if signature != self._last_building_leg:
             self._last_building_leg = signature
             try:
-                await self._pipeliner.replace_plan(kind, entity_id, list(actions))
+                self._building_install = _install_routed_building_plan(
+                    self._pipeliner,
+                    kind,
+                    entity_id,
+                    list(actions),
+                )
             except Exception:
                 log.exception("failed installing miner building leg on %s %s", kind.value, entity_id)
                 self._last_building_leg = None
         return None
 
 
-class _BootstrapScout:
-    """Rotate-and-scan until real exploration (E5.6) lands.
+class _ScoutOutput:
+    """Buffer one frontier leg and wait for its scan to update the world."""
 
-    Cycles scan → turn clockwise → … so a parked drone sweeps its full scan
-    disc without ever moving — turn and scan cannot fail on terrain, so this
-    is risk-free to run unattended. The strategist retires the task (and the
-    pipeliner replaces this plan) as soon as a resource node is discovered.
-    """
+    def __init__(self, controller: ScoutController, world: Any) -> None:
+        self._controller = controller
+        self._world = world
+        self._buffer: list[PlannedAction] = []
+        self._destination: tuple[int, int] | None = None
+        self._awaiting_seen: int | None = None
+        self._awaiting_cycle = 0
 
-    _CYCLE: tuple[PlannedAction, ...] = (
-        PlannedAction("sensors/scan", {"level": 1}),
-        PlannedAction("propulsion/turn", {"direction": 1, "level": 1}),
-    )
+    def __call__(self) -> PlannedAction | None:
+        if self._awaiting_seen is not None:
+            assert self._destination is not None
+            tile = self._world.get_tile(self._destination)
+            last_seen = tile.last_seen if tile is not None else -1
+            if last_seen <= self._awaiting_seen:
+                # A failed/lost scan must not idle forever, but leave ample
+                # time for the queued action and websocket report first.
+                if self._world.cycle - self._awaiting_cycle < 20:
+                    return None
+            self._awaiting_seen = None
 
-    def __init__(self) -> None:
-        self._index = 0
+        if not self._buffer:
+            plan = self._controller.plan()
+            if plan.phase in (ScoutPhase.WAITING, ScoutPhase.BLOCKED):
+                if plan.reason:
+                    log.debug(
+                        "scout %s idle (%s): %s",
+                        self._controller.drone_id,
+                        plan.phase.value,
+                        plan.reason,
+                    )
+                return None
+            self._buffer = list(plan.actions)
+            self._destination = plan.destination
 
-    def __call__(self) -> PlannedAction:
-        action = self._CYCLE[self._index % len(self._CYCLE)]
-        self._index += 1
+        action = self._buffer.pop(0) if self._buffer else None
+        if action is not None and action.action == "sensors/scan":
+            assert self._destination is not None
+            tile = self._world.get_tile(self._destination)
+            self._awaiting_seen = tile.last_seen if tile is not None else -1
+            self._awaiting_cycle = self._world.cycle
         return action
+
+
+class _RechargeOutput:
+    """Serialize a charger route, then install its building-owned charge leg."""
+
+    def __init__(self, controller: ChargerController, pipeliner: Any, world: Any) -> None:
+        self._controller = controller
+        self._pipeliner = pipeliner
+        self._world = world
+        self._buffer: list[PlannedAction] = []
+        self._destination: tuple[int, int] | None = None
+        self._awaiting_destination: tuple[int, int] | None = None
+        self._charge_installed = False
+
+    async def __call__(self) -> PlannedAction | None:
+        if self._awaiting_destination is not None:
+            drone = self._world.get_drone(self._controller.drone_id)
+            if drone is None or drone.coord != self._awaiting_destination:
+                return None
+            self._awaiting_destination = None
+
+        if self._buffer:
+            action = self._buffer.pop(0)
+            if not self._buffer:
+                self._awaiting_destination = self._destination
+            return action
+
+        plan = self._controller.plan()
+        if plan.phase in (MinerPhase.WAITING, MinerPhase.BLOCKED):
+            return None
+        key = plan.entity_key
+        if key is None:
+            return None
+        kind, entity_id = key
+        if kind is EntityKind.DRONE:
+            self._buffer = list(plan.actions_for(kind, entity_id))
+            self._destination = plan.destination
+            if not self._buffer:
+                return None
+            action = self._buffer.pop(0)
+            if not self._buffer:
+                self._awaiting_destination = self._destination
+            return action
+
+        if not self._charge_installed:
+            actions = list(plan.actions_for(kind, entity_id))
+            _install_routed_building_plan(self._pipeliner, kind, entity_id, actions)
+            self._charge_installed = True
+        return None
 
 
 def build_controller_factories() -> dict[str, Any]:
@@ -200,7 +322,26 @@ def build_controller_factories() -> dict[str, Any]:
     ``(entity, task, context)`` at call time, so they need no captured state."""
 
     def scout_sector(entity: Any, task: Task, context: Any) -> Any:
-        return _BootstrapScout()
+        assert isinstance(task, ScoutSector)
+        controller = ScoutController(
+            context.world,
+            context.entity_sim,
+            entity.drone_id,
+            task,
+            threat_cost=lambda coord: context.threat_map.cost_at(coord),
+        )
+        return _ScoutOutput(controller, context.world)
+
+    def recharge(entity: Any, task: Task, context: Any) -> Any:
+        assert isinstance(task, Recharge)
+        controller = ChargerController(
+            context.world,
+            context.entity_sim,
+            entity.drone_id,
+            task,
+            threat_cost=lambda coord: context.threat_map.cost_at(coord),
+        )
+        return _RechargeOutput(controller, context.pipeliner, context.world)
 
     def mine_loop(entity: Any, task: Task, context: Any) -> Any:
         assert isinstance(task, MineLoop)
@@ -240,6 +381,7 @@ def build_controller_factories() -> dict[str, Any]:
         "research": research,
         "produce_drone": produce_drone,
         "scout_sector": scout_sector,
+        "recharge": recharge,
     }
 
 

@@ -32,7 +32,15 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from agent.planning.pipeliner import ControllerOutput
-from agent.planning.tasks import MineLoop, ProduceDrone, Research, ScoutSector, Strike, Task
+from agent.planning.tasks import (
+    MineLoop,
+    ProduceDrone,
+    Recharge,
+    Research,
+    ScoutSector,
+    Strike,
+    Task,
+)
 from agent.rules import hexmath
 
 log = logging.getLogger("agent.planning.strategist")
@@ -74,6 +82,8 @@ class StrategistConfig:
     drone_target: int = 4           # produce drones until we have this many
     base_defense_radius: int = 8    # tiles from any own building counts as "near base"
     tick_interval_s: float = 1.5
+    recharge_trigger_fraction: float = 0.30
+    recharge_recovery_fraction: float = 0.90
     # Ordered economy-first research plan the strategist walks through.
     research_order: tuple[str, ...] = (
         "unlock_auto_cannon",
@@ -81,6 +91,12 @@ class StrategistConfig:
         "unlock_targeting_computer",
         "unlock_shield_generator",
     )
+
+    def __post_init__(self) -> None:
+        if not 0 < self.recharge_trigger_fraction < self.recharge_recovery_fraction <= 1:
+            raise ValueError(
+                "recharge fractions must satisfy 0 < trigger < recovery <= 1"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -301,7 +317,15 @@ def generate_tasks(
 
 # Task kinds a drone can be allocated to vs. work that runs on a building.
 DRONE_TASK_KINDS = frozenset(
-    {"mine_loop", "strike", "escort", "scout_sector", "lay_mines", "deploy_repeater"}
+    {
+        "mine_loop",
+        "strike",
+        "escort",
+        "scout_sector",
+        "lay_mines",
+        "deploy_repeater",
+        "recharge",
+    }
 )
 BUILDING_TASK_KINDS = frozenset({"research", "produce_drone"})
 
@@ -312,6 +336,8 @@ def default_fitness(entity, task: Task) -> float | None:
     work (research/production) returns ``None`` — a drone can't do it."""
     if task.kind in BUILDING_TASK_KINDS:
         return None
+    if isinstance(task, Recharge):
+        return 1.0 if getattr(entity, "drone_id", None) == task.drone_id else None
     coord = getattr(entity, "coord", None)
     base = float(task.priority)
     if isinstance(task, MineLoop):
@@ -354,6 +380,7 @@ class Strategist:
     _stop: asyncio.Event = field(default_factory=asyncio.Event, init=False, repr=False)
     # (entity kind, entity id) -> task_id currently installed in the pipeliner.
     _installed: dict[tuple[str, str], str] = field(default_factory=dict, init=False, repr=False)
+    _charging: set[str] = field(default_factory=set, init=False, repr=False)
 
     # PlanningStrategy protocol
     async def start(self, context) -> None:
@@ -408,18 +435,62 @@ class Strategist:
         building_tasks = [t for t in tasks if t.kind in BUILDING_TASK_KINDS]
 
         drones = list(context.world.drones())
+        recharge_tasks, safety_pins = self._recharge_work(context, drones)
+        drone_tasks = recharge_tasks + drone_tasks
+        desired: dict[tuple[str, str], str] = {}
         if drones and drone_tasks:
-            result = context.allocator.allocate(drones, drone_tasks, self.fitness)
+            result = context.allocator.allocate(
+                drones,
+                drone_tasks,
+                self.fitness,
+                pinned=safety_pins,
+            )
             for entity_id, task in result.items():
+                desired[("drone", entity_id)] = task.task_id
                 await self._register("drone", entity_id, result.assignment_for(entity_id).entity, task, context)
 
         for task in building_tasks:
             building = self._target_building(context.world, task)
             if building is not None:
+                desired[("building", building.building_id)] = task.task_id
                 await self._register("building", building.building_id, building, task, context)
 
-        self._prune_installed(context)
+        await self._prune_installed(context, desired)
         return doctrine
+
+    def _recharge_work(self, context, drones) -> tuple[list[Recharge], dict[str, Recharge]]:
+        """Apply a safety pin from the low threshold through recovery.
+
+        The hysteresis set prevents one station action from lifting a drone
+        barely above the trigger and returning it to mission work too early.
+        """
+        live_ids = {drone.drone_id for drone in drones}
+        self._charging.intersection_update(live_ids)
+        sim = getattr(context, "entity_sim", None)
+        if sim is None:
+            return [], {}
+
+        tasks: list[Recharge] = []
+        pins: dict[str, Recharge] = {}
+        for drone in drones:
+            state = sim.get_drone(drone.drone_id)
+            if state is not None and state.max_battery > 0:
+                fraction = state.current_battery / state.max_battery
+                if fraction <= self.config.recharge_trigger_fraction:
+                    self._charging.add(drone.drone_id)
+                elif fraction >= self.config.recharge_recovery_fraction:
+                    self._charging.discard(drone.drone_id)
+            if drone.drone_id not in self._charging:
+                continue
+            task = Recharge(
+                task_id=f"recharge:{drone.drone_id}",
+                drone_id=drone.drone_id,
+                target_fraction=self.config.recharge_recovery_fraction,
+                priority=100.0,
+            )
+            tasks.append(task)
+            pins[drone.drone_id] = task
+        return tasks, pins
 
     async def _register(self, kind: str, entity_id: str, entity, task: Task, context) -> None:
         """Install an entity's controller output in the pipeliner, but only on
@@ -442,13 +513,28 @@ class Strategist:
             context.pipeliner.register(kind, entity_id, output)
         self._installed[key] = task.task_id
 
-    def _prune_installed(self, context) -> None:
-        """Forget installations for entities that no longer exist (destroyed
-        drones / lost buildings) so the bookkeeping can't grow without bound
-        and a re-created id starts from a clean register."""
-        live = {("drone", d.drone_id) for d in context.world.drones()}
-        live |= {("building", b.building_id) for b in context.world.buildings()}
-        for key in [k for k in self._installed if k not in live]:
+    async def _prune_installed(
+        self, context, desired: Mapping[tuple[str, str], str]
+    ) -> None:
+        """Flush installed work that is no longer the desired assignment.
+
+        Local bookkeeping alone is not enough: actions already accepted by the
+        game remain in the entity FIFO. Invalidation first advances the retry
+        generation, then clears that entity's authoritative server queue.
+        """
+        stale = [
+            key
+            for key, task_id in self._installed.items()
+            if desired.get(key) != task_id
+        ]
+        for key in stale:
+            kind, entity_id = key
+            try:
+                await context.pipeliner.invalidate(kind, entity_id)
+            except Exception:
+                # Retain bookkeeping so the next tick retries the safety flush.
+                log.exception("failed flushing stale %s plan for %s", kind, entity_id)
+                continue
             del self._installed[key]
 
     @staticmethod

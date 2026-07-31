@@ -27,6 +27,9 @@ from agent.transport.schema import (
 )
 
 GOLDEN_SAMPLES = Path(__file__).parent / "fixtures" / "message_samples.json"
+LIVE_BUILDING_VARIANTS = (
+    Path(__file__).parent / "fixtures" / "live_building_status_variants.json"
+)
 
 MESSAGE_MODELS = {
     "action_completed": ActionCompletedMessage,
@@ -79,6 +82,28 @@ def test_large_nested_payloads_are_typed() -> None:
     assert isinstance(report, BuildingActionCompletedMessage)
     assert isinstance(report.details, BuildingStatusReportCompletedDetails)
     assert report.details.buildings[0].origin == (0, 0)
+
+
+def test_live_building_status_variants_are_typed_without_warnings(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    samples = json.loads(LIVE_BUILDING_VARIANTS.read_text(encoding="utf-8"))
+
+    with caplog.at_level(logging.WARNING, logger="agent.transport.parsing"):
+        messages = [parse_wire_message(payload) for payload in samples]
+
+    assert not caplog.text
+    assert all(isinstance(message, BuildingActionCompletedMessage) for message in messages)
+    production = messages[0].details
+    refiner = messages[1].details
+    assert isinstance(production, BuildingStatusCompletedDetails)
+    assert isinstance(refiner, BuildingStatusCompletedDetails)
+    assert production.status.construction_queue == []
+    assert production.status.resource_capacity is None
+    assert production.status.drone_pending is False
+    assert refiner.status.resource_capacity == 200
+    assert refiner.status.unload_range == 1
+    assert refiner.status.transfer_rate == 10
 
 
 def test_unknown_message_is_logged_and_preserved(

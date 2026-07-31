@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, PrivateAttr
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 HexCoordinate = tuple[int, int]
 
@@ -76,6 +76,14 @@ class ConstructionQueueItem(WireModel):
 
 
 class BuildingStatus(WireModel):
+    """Common building status plus optional type-specific capabilities.
+
+    The server omits fields that do not apply to a building type. Identity,
+    health, footprint, and action availability are common live invariants;
+    construction, storage, build, and transfer fields are variant data.
+    Unknown type-specific fields remain preserved by :class:`WireModel`.
+    """
+
     building_id: str
     building_type: str
     owner_id: str
@@ -90,15 +98,15 @@ class BuildingStatus(WireModel):
     enabled_actions: list[str]
     under_construction: bool
     coordinates: list[HexCoordinate]
-    stored_resources: ResourceInventory
-    construction_queue: list[ConstructionQueueItem]
-    current_construction: ConstructionQueueItem | None
-    construction_progress: int | float
-    resource_capacity: int
-    available_capacity: int
-    buildable_buildings: list[str]
-    build_range: int
-    unload_range: int
+    stored_resources: ResourceInventory = Field(default_factory=ResourceInventory)
+    construction_queue: list[ConstructionQueueItem] = Field(default_factory=list)
+    current_construction: ConstructionQueueItem | None = None
+    construction_progress: int | float | None = None
+    resource_capacity: int | None = None
+    available_capacity: int | None = None
+    buildable_buildings: list[str] = Field(default_factory=list)
+    build_range: int | None = None
+    unload_range: int | None = None
 
 
 class IdentifiedResource(WireModel):

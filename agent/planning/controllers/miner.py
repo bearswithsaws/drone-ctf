@@ -27,7 +27,7 @@ from agent.planning.pathfind import (
 from agent.planning.pipeliner import PlannedAction
 from agent.planning.tasks import MineLoop
 from agent.rules.costs import CHARGE_RATE, estimate_battery_cost
-from agent.rules.hexmath import get_neighbor, hex_distance_cube
+from agent.rules.hexmath import abs_to_rel, get_neighbor, hex_distance_cube
 from agent.sim.entity_sim import DroneSimState, EntitySim
 from agent.transport.action_tracker import EntityKind, Precondition
 from agent.world.model import BuildingRecord, DroneRecord, WorldModel
@@ -413,9 +413,11 @@ class MinerController:
                 reserve,
             )
 
+        dropoff_origin = dropoff.origin or dropoff.tiles[0]
+        relative_q, relative_r = abs_to_rel(*dropoff_route.destination, *dropoff_origin)
         payload: dict[str, object] = {
-            "q": dropoff_route.destination[0],
-            "r": dropoff_route.destination[1],
+            "q": relative_q,
+            "r": relative_r,
             "efficiency": self.config.efficiency,
         }
         if self.task.resource_type is not None:
@@ -500,6 +502,8 @@ class MinerController:
                 ),
             )
         count = math.ceil((target - state.current_battery) / CHARGE_RATE)
+        charger_origin = charger.origin or charger.tiles[0]
+        relative_q, relative_r = abs_to_rel(*route.destination, *charger_origin)
         charge_actions = tuple(
             RoutedAction(
                 EntityKind.BUILDING,
@@ -507,8 +511,8 @@ class MinerController:
                 PlannedAction(
                     "charging_station/charge",
                     {
-                        "q": route.destination[0],
-                        "r": route.destination[1],
+                        "q": relative_q,
+                        "r": relative_r,
                         "efficiency": self.config.efficiency,
                     },
                     precondition=self._charge_guard(route.destination, target),

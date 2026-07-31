@@ -1,0 +1,66 @@
+[
+  {
+    "message_id": "live-production-status",
+    "message_type": "building_action_completed",
+    "timestamp": 101,
+    "subject": "Building status completed",
+    "details": {
+      "success": true,
+      "status": {
+        "building_id": "production-1",
+        "building_type": "drone_production_plant",
+        "owner_id": "team-1",
+        "size": [3, 3],
+        "max_health": 500,
+        "current_health": 500,
+        "armour": 20,
+        "max_shields": 150,
+        "shields": 0,
+        "power_generation": 0.0,
+        "target_efficiency": 1.0,
+        "enabled_actions": ["load_drone", "unload_drone", "build_drone", "status", "repair"],
+        "under_construction": false,
+        "coordinates": [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1], [0, 2], [1, 2], [2, 2]],
+        "stored_resources": {},
+        "drone_pending": false
+      }
+    },
+    "action_id": "production-action",
+    "building_id": "production-1"
+  },
+  {
+    "message_id": "live-refiner-status",
+    "message_type": "building_action_completed",
+    "timestamp": 102,
+    "subject": "Building status completed",
+    "details": {
+      "success": true,
+      "status": {
+        "building_id": "refiner-1",
+        "building_type": "refiner",
+        "owner_id": "team-1",
+        "size": [2, 2],
+        "max_health": 600,
+        "current_health": 600,
+        "armour": 30,
+        "max_shields": 200,
+        "shields": 0,
+        "power_generation": 0.0,
+        "target_efficiency": 1.0,
+        "enabled_actions": ["unload_drone", "process", "load_drone", "status", "repair"],
+        "under_construction": false,
+        "coordinates": [[0, 0], [1, 0], [0, 1], [1, 1]],
+        "transfer_rate": 10,
+        "ore_capacity": 200,
+        "resource_capacity": 200,
+        "unload_range": 1,
+        "stored_ore": {},
+        "stored_resources": {},
+        "processing_progress": 0.0,
+        "current_processing_ore": null
+      }
+    },
+    "action_id": "refiner-action",
+    "building_id": "refiner-1"
+  }
+]

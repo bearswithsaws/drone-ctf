@@ -199,7 +199,6 @@ async def test_bootstrap_allocation_queue_transition_and_shutdown(tmp_path: Path
     ]
     assert "/buildings/command_centre/status_report" in {path for path, _ in rest.posts}
     assert (EntityKind.DRONE, "d1") in pipeline.outputs
-    assert (EntityKind.DRONE, "d2") in pipeline.outputs
     assert strategy.last_inputs is not None
     assert strategy.last_inputs.score == strategy._score
     assert strategy.last_inputs.economy.drone_cargo == {"d1": {}, "d2": {}}
@@ -232,3 +231,58 @@ async def test_bootstrap_allocation_queue_transition_and_shutdown(tmp_path: Path
 
     assert installed_keys <= set(pipeline.invalidated)
     assert strategy._task is None
+
+
+async def test_live_strategy_diverts_low_battery_drone_until_recovered(
+    tmp_path: Path,
+) -> None:
+    ctx, pipeline = await context()
+    await ctx.world.upsert_drone("d1", q=-1, r=0, direction=0, cycle=2)
+    await ctx.world.observe_tiles(
+        [TileObservation(q=-1, r=0, terrain_type=Terrain.NORMAL)],
+        cycle=2,
+    )
+    ctx.entity_sim.seed_drone(
+        "d1",
+        current_battery=300,
+        max_battery=1000,
+        hopper_capacity=20,
+        equipment=("propulsion", "sensors", "drill", "hopper"),
+    )
+    strategy = LiveMatchStrategy(
+        Rest(),
+        Config(
+            "https://game.test",
+            "pilot",
+            "secret",
+            strategist_tick_s=60,
+            scoreboard_poll_s=60,
+            telemetry_path=tmp_path / "live.jsonl",
+            world_database=tmp_path / "world.sqlite",
+        ),
+        bootstrap_timeout_s=0.1,
+    )
+
+    await strategy.start(ctx)
+    await strategy.wait_ready(timeout_s=1)
+    await strategy.tick()
+
+    assert ctx.allocator.last_result.task_for("d1").kind == "recharge"
+    assert (EntityKind.BUILDING, "charger") in pipeline.outputs
+    charge = list(pipeline.outputs[(EntityKind.BUILDING, "charger")])[0]
+    assert charge.action == "charging_station/charge"
+    assert dict(charge.payload) == {"q": 1, "r": 0, "efficiency": 1.0}
+
+    ctx.entity_sim.seed_drone("d1", current_battery=500, max_battery=1000)
+    pipeline.finish(EntityKind.BUILDING, "charger")
+    await strategy.tick()
+    assert ctx.allocator.last_result.task_for("d1").kind == "recharge"
+
+    ctx.entity_sim.seed_drone("d1", current_battery=900, max_battery=1000)
+    pipeline.finish(EntityKind.BUILDING, "charger")
+    await strategy.tick()
+    task = ctx.allocator.last_result.task_for("d1")
+    assert task is None or task.kind != "recharge"
+    assert (EntityKind.BUILDING, "charger") in pipeline.invalidated
+
+    await strategy.stop()

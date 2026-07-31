@@ -103,6 +103,26 @@ class ScoutSector(Task):
 
 
 @dataclass(frozen=True, slots=True)
+class Recharge(Task):
+    """Safety override that keeps one drone charging to a recovery target."""
+
+    drone_id: str
+    target_fraction: float = 0.9
+    kind: ClassVar[str] = "recharge"
+
+    def __post_init__(self) -> None:
+        Task.__post_init__(self)
+        _non_empty(self.drone_id, "drone_id")
+        if (
+            isinstance(self.target_fraction, bool)
+            or not isinstance(self.target_fraction, (int, float))
+            or not math.isfinite(self.target_fraction)
+            or not 0 < self.target_fraction <= 1
+        ):
+            raise ValueError("target_fraction must be in (0, 1]")
+
+
+@dataclass(frozen=True, slots=True)
 class Escort(Task):
     """Protect another friendly entity."""
 
@@ -193,6 +213,7 @@ class ProduceDrone(Task):
 TaskType: TypeAlias = (
     Task
     | MineLoop
+    | Recharge
     | ScoutSector
     | Escort
     | Strike
@@ -209,6 +230,7 @@ __all__ = [
     "LayMines",
     "MineLoop",
     "ProduceDrone",
+    "Recharge",
     "Research",
     "ScoutSector",
     "Strike",

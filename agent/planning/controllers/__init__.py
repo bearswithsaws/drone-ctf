@@ -9,7 +9,7 @@ from agent.planning.controllers.base import (
     ResearchController,
     ResearchStep,
 )
-from agent.planning.controllers.hello_world import HelloWorldController, HelloWorldResult
+from agent.planning.controllers.charger import ChargerConfig, ChargerController
 from agent.planning.controllers.fighter import (
     EngagementTarget,
     FighterConfig,
@@ -17,6 +17,7 @@ from agent.planning.controllers.fighter import (
     FighterPhase,
     FighterPlan,
 )
+from agent.planning.controllers.hello_world import HelloWorldController, HelloWorldResult
 from agent.planning.controllers.miner import (
     MinerConfig,
     MinerController,
@@ -25,10 +26,12 @@ from agent.planning.controllers.miner import (
     RoutedAction,
     group_miner_actions,
 )
-from agent.planning.controllers.scout import ScoutController, ScoutPhase, ScoutPlan
+from agent.planning.controllers.scout import ScoutConfig, ScoutController, ScoutPhase, ScoutPlan
 
 __all__ = [
     "BuildOrder",
+    "ChargerConfig",
+    "ChargerController",
     "HelloWorldController",
     "HelloWorldResult",
     "EngagementTarget",
@@ -47,6 +50,7 @@ __all__ = [
     "ResearchController",
     "ResearchStep",
     "RoutedAction",
+    "ScoutConfig",
     "ScoutController",
     "ScoutPhase",
     "ScoutPlan",

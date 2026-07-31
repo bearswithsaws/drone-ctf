@@ -12,6 +12,7 @@ from typing import Any, Protocol
 from agent.config import Config
 from agent.planning.controllers import (
     BuildOrder,
+    ChargerController,
     FighterController,
     MinerController,
     ProductionController,
@@ -30,7 +31,15 @@ from agent.planning.strategist import (
     generate_tasks,
     next_doctrine,
 )
-from agent.planning.tasks import MineLoop, ProduceDrone, Research, ScoutSector, Strike, Task
+from agent.planning.tasks import (
+    MineLoop,
+    ProduceDrone,
+    Recharge,
+    Research,
+    ScoutSector,
+    Strike,
+    Task,
+)
 from agent.rules.costs import DRONE_COST
 from agent.rules.hexmath import get_neighbor, hex_distance_cube
 from agent.transport.action_tracker import (
@@ -125,6 +134,7 @@ class LiveMatchStrategy:
     _team: int | None = field(default=None, init=False, repr=False)
     _next_score_poll: float = field(default=0.0, init=False, repr=False)
     _match_ended: bool = field(default=False, init=False, repr=False)
+    _charging: set[str] = field(default_factory=set, init=False, repr=False)
 
     def __post_init__(self) -> None:
         if self.bootstrap_timeout_s <= 0:
@@ -201,10 +211,20 @@ class LiveMatchStrategy:
         self.last_inputs = LiveStrategicInputs(score, self._economy_state(), assessment)
 
         tasks = self._tasks(doctrine, assessment)
-        self.last_tasks = tuple(tasks)
-        drone_tasks = [task for task in tasks if isinstance(task, (MineLoop, ScoutSector, Strike))]
         drones = list(context.world.drones())
-        result = context.allocator.allocate(drones, drone_tasks, self._fitness)
+        recharge_tasks, safety_pins = self._recharge_work(drones)
+        self.last_tasks = tuple(recharge_tasks + tasks)
+        drone_tasks = recharge_tasks + [
+            task
+            for task in tasks
+            if isinstance(task, (MineLoop, ScoutSector, Strike))
+        ]
+        result = context.allocator.allocate(
+            drones,
+            drone_tasks,
+            self._fitness,
+            pinned=safety_pins,
+        )
         assigned = set(result)
 
         for drone_id in list(self._installed):
@@ -446,6 +466,36 @@ class LiveMatchStrategy:
                 )
         return generated
 
+    def _recharge_work(
+        self, drones: Sequence[DroneRecord]
+    ) -> tuple[list[Recharge], dict[str, Recharge]]:
+        context = self._require_context()
+        config = self.strategist_config
+        assert config is not None
+        live_ids = {drone.drone_id for drone in drones}
+        self._charging.intersection_update(live_ids)
+        tasks: list[Recharge] = []
+        pins: dict[str, Recharge] = {}
+        for drone in drones:
+            state = context.entity_sim.get_drone(drone.drone_id)
+            if state is not None and state.max_battery > 0:
+                fraction = state.current_battery / state.max_battery
+                if fraction <= config.recharge_trigger_fraction:
+                    self._charging.add(drone.drone_id)
+                elif fraction >= config.recharge_recovery_fraction:
+                    self._charging.discard(drone.drone_id)
+            if drone.drone_id not in self._charging:
+                continue
+            task = Recharge(
+                task_id=f"recharge:{drone.drone_id}",
+                drone_id=drone.drone_id,
+                target_fraction=config.recharge_recovery_fraction,
+                priority=100.0,
+            )
+            tasks.append(task)
+            pins[drone.drone_id] = task
+        return tasks, pins
+
     def _fitness(self, entity: DroneRecord, task: Task) -> float | None:
         context = self._require_context()
         state = context.entity_sim.get_drone(entity.drone_id)
@@ -454,6 +504,8 @@ class LiveMatchStrategy:
         equipment = state.functional_equipment
         required: set[str]
         target: tuple[int, int] | None = None
+        if isinstance(task, Recharge):
+            return 1.0 if entity.drone_id == task.drone_id else None
         if isinstance(task, MineLoop):
             required = {"propulsion", "drill", "hopper"}
             target = task.resource_node
@@ -501,6 +553,16 @@ class LiveMatchStrategy:
         context = self._require_context()
         if isinstance(task, MineLoop):
             plan = MinerController(
+                context.world,
+                context.entity_sim,
+                drone_id,
+                task,
+                threat_cost=context.threat_map,
+            ).plan()
+            key = plan.entity_key
+            return key, () if key is None else plan.actions_for(*key)
+        if isinstance(task, Recharge):
+            plan = ChargerController(
                 context.world,
                 context.entity_sim,
                 drone_id,
@@ -641,18 +703,22 @@ class LiveMatchStrategy:
         force: bool,
     ) -> bool:
         context = self._require_context()
+        current = self._installed.get(owner)
+        if current is not None and current.key != key:
+            if not force and not self._plan_finished(current):
+                return False
+            # Release the owner's obsolete queue before checking whether a
+            # shared destination queue is busy. A safety diversion must never
+            # leave ordinary mission work running while the drone waits its
+            # turn at a charging station.
+            await self._release(owner)
+
         incumbent = self._queue_owners.get(key)
         if incumbent is not None and incumbent != owner:
             incumbent_plan = self._installed.get(incumbent)
             if incumbent_plan is not None and not self._plan_finished(incumbent_plan):
                 return False
             await self._release(incumbent)
-
-        current = self._installed.get(owner)
-        if current is not None and current.key != key:
-            if not force and not self._plan_finished(current):
-                return False
-            await self._release(owner)
 
         status = context.pipeliner.status(*key)
         try:

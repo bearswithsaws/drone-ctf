@@ -1,5 +1,14 @@
 """Action-producing controllers."""
 
+from agent.planning.controllers.base import (
+    BuildOrder,
+    ProductionController,
+    ProductionPlan,
+    RefinerBatch,
+    RefinerController,
+    ResearchController,
+    ResearchStep,
+)
 from agent.planning.controllers.hello_world import HelloWorldController, HelloWorldResult
 from agent.planning.controllers.fighter import (
     EngagementTarget,
@@ -18,6 +27,7 @@ from agent.planning.controllers.miner import (
 )
 
 __all__ = [
+    "BuildOrder",
     "HelloWorldController",
     "HelloWorldResult",
     "EngagementTarget",
@@ -29,6 +39,12 @@ __all__ = [
     "MinerController",
     "MinerPhase",
     "MinerPlan",
+    "ProductionController",
+    "ProductionPlan",
+    "RefinerBatch",
+    "RefinerController",
+    "ResearchController",
+    "ResearchStep",
     "RoutedAction",
     "group_miner_actions",
 ]

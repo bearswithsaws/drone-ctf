@@ -55,6 +55,12 @@ def test_load_config_from_creds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
         "DRONE_ADMIN_USERNAME",
         "DRONE_ADMIN_PASSWORD",
         "DRONE_ADMIN_TOKEN",
+        "DRONE_TELEMETRY_PATH",
+        "DRONE_WORLD_DATABASE",
+        "DRONE_MATCH_ID",
+        "DRONE_PLANNING_ENABLED",
+        "DRONE_QUEUE_DEPTH_TARGET",
+        "DRONE_SNAPSHOT_INTERVAL_S",
     ):
         monkeypatch.delenv(var, raising=False)
     cfg = load_config(_write(tmp_path))
@@ -62,6 +68,7 @@ def test_load_config_from_creds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     assert cfg.api_base == "https://example.dronebattles.test/api/v1"
     assert cfg.username == "user1"
     assert cfg.admin_token == "deadbeefcafe"
+    assert cfg.persistence_match_id.startswith("runtime-")
 
 
 def test_env_overrides_creds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -81,3 +88,44 @@ def test_missing_config_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     empty.write_text("nothing useful here\n", encoding="utf-8")
     with pytest.raises(RuntimeError, match="Missing required config"):
         load_config(empty)
+
+
+def test_runtime_settings_load_from_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DRONE_TELEMETRY_PATH", str(tmp_path / "events.jsonl"))
+    monkeypatch.setenv("DRONE_WORLD_DATABASE", str(tmp_path / "world.sqlite"))
+    monkeypatch.setenv("DRONE_MATCH_ID", "match-77")
+    monkeypatch.setenv("DRONE_PLANNING_ENABLED", "true")
+    monkeypatch.setenv("DRONE_QUEUE_DEPTH_TARGET", "8")
+    monkeypatch.setenv("DRONE_SNAPSHOT_INTERVAL_S", "2.5")
+
+    cfg = load_config(_write(tmp_path))
+
+    assert cfg.telemetry_path == tmp_path / "events.jsonl"
+    assert cfg.world_database == tmp_path / "world.sqlite"
+    assert cfg.persistence_match_id == "match-77"
+    assert cfg.planning_enabled
+    assert cfg.queue_depth_target == 8
+    assert cfg.snapshot_interval_s == 2.5
+
+
+@pytest.mark.parametrize(
+    ("name", "value", "message"),
+    [
+        ("DRONE_PLANNING_ENABLED", "sometimes", "must be a boolean"),
+        ("DRONE_QUEUE_DEPTH_TARGET", "9", "must be between 4 and 8"),
+        ("DRONE_SNAPSHOT_INTERVAL_S", "0", "must be at least"),
+    ],
+)
+def test_invalid_runtime_settings_fail_fast(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    value: str,
+    message: str,
+) -> None:
+    monkeypatch.setenv(name, value)
+
+    with pytest.raises(RuntimeError, match=message):
+        load_config(_write(tmp_path))

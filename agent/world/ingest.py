@@ -59,8 +59,9 @@ class Ingestor:
     # --- bus entry point ---
 
     async def on_message(self, _topic: str, msg: Any) -> None:
-        if isinstance(msg, dict):
-            await self.ingest(msg)
+        payload = _message_mapping(msg)
+        if payload is not None:
+            await self.ingest(payload)
 
     async def ingest(self, msg: dict[str, Any]) -> None:
         message_type = msg.get("message_type", "") or ""
@@ -391,6 +392,17 @@ def _coord(value: Any) -> tuple[int, int] | None:
             return (int(value[0]), int(value[1]))
         except (TypeError, ValueError):
             return None
+    return None
+
+
+def _message_mapping(value: Any) -> dict[str, Any] | None:
+    if isinstance(value, dict):
+        return value
+    model_dump = getattr(value, "model_dump", None)
+    if callable(model_dump):
+        payload = model_dump(mode="python")
+        if isinstance(payload, dict):
+            return payload
     return None
 
 

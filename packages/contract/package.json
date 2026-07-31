@@ -1,0 +1,39 @@
+{
+  "name": "@drone-ctf/commander-contract",
+  "version": "1.0.0",
+  "description": "Versioned commander API DTO and Socket.IO event types for Drone CTF",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./schema": "./schema/contract-v1.schema.json"
+  },
+  "files": [
+    "dist",
+    "schema",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "generate:schema": "node scripts/generate-schema.mjs",
+    "generate:types": "json2ts --input schema/contract-v1.schema.json --output src/schema.generated.ts",
+    "generate": "npm run generate:schema && npm run generate:types",
+    "check:schema": "node scripts/check-schema.mjs",
+    "check": "npm run check:schema && npm run typecheck && npm run build",
+    "prepack": "npm run check"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "json-schema-to-typescript": "^15.0.4",
+    "typescript": "^5.5.4"
+  }
+}

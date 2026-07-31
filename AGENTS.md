@@ -4,3 +4,4 @@
 - Create python environment inside worktree when starting
 - Do not try to create pull requests when finished, just present the link to the user for creating one
 - Refer to game API docs in the docs/ directory if needed
+- Before declaring a ticket complete, run the pipeline checks locally and confirm they all pass

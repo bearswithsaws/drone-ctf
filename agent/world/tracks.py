@@ -57,6 +57,9 @@ class Sighting:
     cycle: int
     drone_id: str | None = None
     is_decoy: bool = False
+    # ``None`` means scan-level contact with an unknown loadout.  Identify is
+    # authoritative and supplies a (possibly empty) set.
+    equipment: frozenset[str] | None = None
 
     @property
     def coord(self) -> Coord:
@@ -88,6 +91,8 @@ class EnemyTrack:
     source: SightingSource
     drone_id: str | None = None
     is_decoy: bool = False
+    equipment: frozenset[str] = field(default_factory=frozenset)
+    equipment_known: bool = False
     half_life: int = DEFAULT_TRACK_HALF_LIFE  # set by the owning TrackStore
     history: deque[tuple[int, int, int]] = field(default_factory=lambda: deque(maxlen=_HISTORY))
 
@@ -231,6 +236,8 @@ class TrackStore:
             source=s.source,
             drone_id=s.drone_id,
             is_decoy=s.is_decoy,
+            equipment=s.equipment or frozenset(),
+            equipment_known=s.equipment is not None,
             half_life=self._half_life,
         )
         track.history.append((s.cycle, s.q, s.r))
@@ -254,6 +261,9 @@ class TrackStore:
         # identify is authoritative about decoy status.
         if s.source == SightingSource.IDENTIFY:
             track.is_decoy = s.is_decoy
+            if s.equipment is not None:
+                track.equipment = s.equipment
+                track.equipment_known = True
 
     async def _emit(self, track_id: str | None, *, removed: bool = False) -> None:
         if self._bus is not None:

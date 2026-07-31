@@ -70,6 +70,76 @@ async def test_identify_attaches_identity_and_decoy() -> None:
     assert t.is_decoy is False
 
 
+async def test_identify_records_enemy_loadout_and_building_for_threat_map() -> None:
+    from agent.world import ThreatMap
+
+    wm = WorldModel()
+    ts = TrackStore(gate=3)
+    ing = Ingestor(wm, ts)
+    threat = ThreatMap(wm, ts)
+    await wm.upsert_drone("me", q=0, r=0, cycle=0)
+
+    await ing.ingest({
+        "message_id": "id-threat",
+        "message_type": "action_completed",
+        "subject": "Identify completed",
+        "timestamp": 2,
+        "drone_id": "me",
+        "details": {"success": True, "identify_data": {
+            "target_q": 4,
+            "target_r": 0,
+            "terrain": 1,
+            "elevation": 0,
+            "resource": None,
+            "drones": [{
+                "drone_id": "enemy-1",
+                "max_health": 100,
+                "equipment": [{"equipment_type": "Laser Cannon"}],
+            }],
+            "building": {
+                "building_id": "enemy-turret",
+                "building_type": "Missile Turret",
+            },
+        }},
+    })
+
+    assert ts.tracks()[0].equipment == frozenset({"laser_cannon"})
+    assert wm.get_enemy_building("enemy-turret").building_type == "missile_turret"
+    assert threat.cost_at((4, 0), now_cycle=2) == 2.0
+
+
+async def test_scan_and_destroy_messages_remove_known_enemy_building() -> None:
+    wm = WorldModel()
+    ing = Ingestor(wm)
+    await wm.upsert_drone("me", q=0, r=0, cycle=0)
+    await wm.upsert_enemy_building(
+        "enemy-turret", building_type="laser_turret", origin=(3, 0), tiles=((3, 0),)
+    )
+
+    await ing.ingest(
+        _scan_msg("me", [{
+            "coordinates": [3, 0],
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": False,
+            "has_drone": False,
+            "has_building": False,
+        }], cycle=3)
+    )
+    assert wm.get_enemy_building("enemy-turret") is None
+
+    await wm.upsert_enemy_building("enemy-turret", origin=(3, 0))
+    await ing.ingest({
+        "message_id": "destroyed",
+        "message_type": "building_destroyed",
+        "subject": "Building destroyed",
+        "timestamp": 4,
+        "building_id": "enemy-turret",
+        "details": {},
+    })
+    assert wm.get_enemy_building("enemy-turret") is None
+
+
 async def test_ingest_without_trackstore_is_fine() -> None:
     wm = WorldModel()
     ing = Ingestor(wm)  # no track store

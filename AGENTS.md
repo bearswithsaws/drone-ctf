@@ -1,0 +1,6 @@
+- Use `gh` command line to interact with GitHub
+- we're doing PR-per-ticket off main, each PR title/body referencing its Ex.y issue and using Closes #<n>.
+- Always use a git worktree when starting a new ticket
+- Create python environment inside worktree when starting
+- Do not try to create pull requests when finished, just present the link to the user for creating one
+- Refer to game API docs in the docs/ directory if needed

@@ -65,6 +65,11 @@ runs a player-visible command-centre/status/scan sweep, polls the scoreboard,
 and continuously turns strategist tasks into miner, scout, fighter, refining,
 research, and production controller plans.
 
+The commander facade exposes `GET /v1/state` plus `POST /v1/directives` for
+time-limited stance, squad-order, and per-entity override commands. Entity
+overrides pin the selected allocator task across replans until their absolute
+TTL expires; stance changes wake the live strategist immediately.
+
 In `--mode proof`, the E1.7 proof controller selects the first owned drone with
 a clear route, then repeatedly scans, drives forward three tiles, and reverses
 home. A finite `--duration` is checked between complete loops, so shutdown never

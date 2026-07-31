@@ -16,7 +16,7 @@ from typing import Any
 from uuid import uuid4
 
 import socketio
-from fastapi import FastAPI
+from fastapi import FastAPI, status
 
 from agent.bus import EventBus
 from agent.commander.contract import (
@@ -25,6 +25,7 @@ from agent.commander.contract import (
     BuildingState,
     BuildingUpsert,
     Coordinate,
+    Directive,
     DroneState,
     DroneUpsert,
     EnemyTrackState,
@@ -38,6 +39,7 @@ from agent.commander.contract import (
     WorldChange as ContractWorldChange,
     WorldDiff,
 )
+from agent.commander.directives import DirectiveStore
 from agent.world.model import TOPIC_WORLD_CHANGED, WorldChange, WorldModel
 from agent.world.tiles import TileBelief
 from agent.world.tracks import TOPIC_TRACK_CHANGED, EnemyTrack, TrackStore
@@ -125,12 +127,15 @@ class CommanderAPI:
         tracks: TrackStore,
         bus: EventBus,
         *,
+        directives: DirectiveStore | None = None,
         socket_server: socketio.AsyncServer | None = None,
         cors_allowed_origins: str | list[str] = "*",
     ) -> None:
         self.world = world
         self.tracks = tracks
         self.bus = bus
+        self.directives = directives or DirectiveStore(bus)
+        self._owns_directives = directives is None
         self.sio = socket_server or socketio.AsyncServer(
             async_mode="asgi",
             cors_allowed_origins=cors_allowed_origins,
@@ -173,6 +178,13 @@ class CommanderAPI:
             methods=["GET"],
             response_model=StateSnapshot,
         )
+        self.http.add_api_route(
+            "/v1/directives",
+            self.submit_directive,
+            methods=["POST"],
+            response_model=Directive,
+            status_code=status.HTTP_202_ACCEPTED,
+        )
 
     async def state(self) -> StateSnapshot:
         """Return an atomic snapshot aligned with the diff sequence."""
@@ -195,6 +207,12 @@ class CommanderAPI:
         snapshot = plan if isinstance(plan, PlanSnapshot) else PlanSnapshot.model_validate(plan)
         await self._emit("plan_changed", snapshot)
 
+    async def submit_directive(self, directive: Directive) -> Directive:
+        """Validate and activate a stance, squad order, or entity override."""
+
+        await self.directives.apply(directive)
+        return directive
+
     async def publish_alert(self, alert: Alert | Mapping[str, Any]) -> None:
         """Push a validated alert to all commander clients."""
 
@@ -205,6 +223,8 @@ class CommanderAPI:
         if self._closed:
             return
         self._closed = True
+        if self._owns_directives:
+            await self.directives.close()
         for unsubscribe in self._unsubscribers:
             unsubscribe()
         self._unsubscribers.clear()

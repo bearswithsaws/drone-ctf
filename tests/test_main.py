@@ -51,12 +51,18 @@ class RuntimeRest:
         self.token = token
 
     async def post(self, path: str, json: dict[str, Any] | None = None) -> FakeResult:
-        assert path == "/auth/login"
-        return FakeResult({"token": "token", "user_id": "user-1"})
+        if path == "/auth/login":
+            return FakeResult({"token": "token", "user_id": "user-1"})
+        if path == "/buildings/command_centre/status_report":
+            return FakeResult({"action_id": "report-1"})
+        raise AssertionError(f"unexpected POST {path}")
 
     async def get(self, path: str, params: dict[str, Any] | None = None) -> FakeResult:
-        assert path == "/drones"
-        return FakeResult({"drone_ids": ["drone-1"]})
+        if path == "/drones":
+            return FakeResult({"drone_ids": ["drone-1"]})
+        if path == "/auth/scoreboard":
+            return FakeResult({"scoreboard": [], "team_scores": {}})
+        raise AssertionError(f"unexpected GET {path}")
 
     async def aclose(self) -> None:
         self.closed = True
@@ -159,11 +165,32 @@ async def test_runtime_wires_transport_controller_and_clean_shutdown(
         world_database=tmp_path / "world.sqlite",
     )
 
-    assert await agent_main.run(cfg, duration_s=600) == 0
+    assert await agent_main.run(cfg, mode="proof", duration_s=600) == 0
 
     assert RuntimeController.selected == "drone-1"
     assert RuntimeController.duration == 600
     assert RuntimeTracker.instance.stopped
     assert RuntimeTracker.instance.closed
+    assert RuntimeSocket.instance.stopped
+    assert RuntimeRest.instance.closed
+
+
+async def test_play_mode_installs_strategist_and_runs_for_duration(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(agent_main, "GameRest", RuntimeRest)
+    monkeypatch.setattr(agent_main, "ActionTracker", RuntimeTracker)
+    monkeypatch.setattr(agent_main, "GameSocket", RuntimeSocket)
+    cfg = Config(
+        "https://game.test",
+        "pilot",
+        "secret",
+        telemetry_path=tmp_path / "runtime.jsonl",
+        world_database=tmp_path / "world.sqlite",
+    )
+
+    assert await agent_main.run(cfg, mode="play", duration_s=0.05) == 0
+
+    assert RuntimeTracker.instance.stopped
     assert RuntimeSocket.instance.stopped
     assert RuntimeRest.instance.closed

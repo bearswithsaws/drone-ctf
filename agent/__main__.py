@@ -1,8 +1,10 @@
-"""Agent entrypoint for the composed live runtime and E1.7 proof controller.
+"""Agent entrypoint: the playable composed runtime, plus the E1.7 proof mode.
 
-Run with ``python -m agent``. The composition root owns transport, telemetry,
-world state, simulation, persistence, and the disabled-by-default planning
-boundary while this entrypoint runs the finite hello-world proof controller.
+Run with ``python -m agent`` (default ``--mode play``): the composition root
+owns transport, telemetry, world state, simulation, and persistence, and the
+strategist is installed into the planning boundary so the agent autonomously
+mines, researches, produces, and defends. ``--mode proof`` runs the finite
+hello-world out-and-back controller instead.
 """
 
 from __future__ import annotations
@@ -15,6 +17,8 @@ from typing import Any
 from agent.config import Config, load_config
 from agent.logging_setup import setup_logging
 from agent.planning.controllers.hello_world import HelloWorldController
+from agent.planning.live import build_strategist
+from agent.planning.strategist import StrategistConfig
 from agent.runtime import AgentRuntime, compose_runtime
 from agent.transport.action_tracker import ActionTracker
 from agent.transport.rest import GameRest
@@ -23,8 +27,8 @@ from agent.transport.ws import GameSocket
 log = logging.getLogger("agent.main")
 
 
-async def login(rest: GameRest, cfg: Config) -> str | None:
-    """POST /auth/login and return a token, or None on failure."""
+async def login(rest: GameRest, cfg: Config) -> tuple[str, str] | None:
+    """POST /auth/login; return ``(token, user_id)`` or None on failure."""
     res = await rest.post("/auth/login", json={"username": cfg.username, "password": cfg.password})
     if not res.ok:
         log.error("Login failed (%s): %s", res.status, res.error_message or res.data)
@@ -33,8 +37,9 @@ async def login(rest: GameRest, cfg: Config) -> str | None:
     if not token:
         log.error("Login succeeded but no token in response: %r", res.data)
         return None
-    log.info("Authenticated as %s (user_id=%s)", cfg.username, res.data.get("user_id"))
-    return token
+    user_id = str(res.data.get("user_id") or "")
+    log.info("Authenticated as %s (user_id=%s)", cfg.username, user_id)
+    return token, user_id
 
 
 def _extract_drone_ids(payload: dict[str, Any]) -> list[str]:
@@ -75,24 +80,26 @@ async def _wait_for_socket(socket: GameSocket, timeout_s: float = 30.0) -> None:
         await asyncio.sleep(0.05)
 
 
-async def run(cfg: Config, *, duration_s: float | None = None) -> int:
-    log.info("Starting agent against %s", cfg.server_url)
+async def run(cfg: Config, *, mode: str = "play", duration_s: float | None = None) -> int:
+    log.info("Starting agent against %s (mode=%s)", cfg.server_url, mode)
 
     # A single pooled REST client used for everything. The reauth callback lets
     # GameRest transparently re-login when the server expires our token.
     rest = GameRest(cfg.api_base)
 
     async def reauth() -> str | None:
-        return await login(rest, cfg)
+        result = await login(rest, cfg)
+        return None if result is None else result[0]
 
     rest.set_reauth(reauth)
 
     runtime: AgentRuntime | None = None
 
     try:
-        token = await login(rest, cfg)
-        if token is None:
+        auth = await login(rest, cfg)
+        if auth is None:
             return 1
+        token, user_id = auth
         rest.set_token(token)
 
         drones = await rest.get("/drones")
@@ -108,16 +115,50 @@ async def run(cfg: Config, *, duration_s: float | None = None) -> int:
             log.error("No owned drones were returned by GET /drones")
             return 1
 
+        strategy = None
+        if mode == "play":
+            strategy = build_strategist(
+                rest,
+                user_id,
+                config=StrategistConfig(tick_interval_s=cfg.strategist_tick_s),
+                scoreboard_interval_s=cfg.scoreboard_poll_s,
+            )
+
         runtime = compose_runtime(
             cfg,
             rest,
             gap_fill=lambda count: _gap_fill(rest, count),
             tracker_factory=ActionTracker,
             socket_factory=GameSocket,
+            strategy=strategy,
         )
         await runtime.start()
-
         await _wait_for_socket(runtime.socket)
+
+        if mode == "play":
+            # Prime the world so the strategist has drones/buildings/resources to
+            # reason about, then let the composed subsystems play until stopped.
+            report = await rest.post(
+                "/buildings/command_centre/status_report", json={"efficiency": 1.0}
+            )
+            if not report.ok:
+                log.warning(
+                    "Initial status_report request failed (%s): %s — strategist "
+                    "will wait for the first successful report",
+                    report.status,
+                    report.error_message or report.data,
+                )
+            log.info(
+                "Playing autonomously with %d known drone(s)%s",
+                len(drone_ids),
+                f" for {duration_s:g}s" if duration_s else " until interrupted",
+            )
+            if duration_s is None:
+                await asyncio.Event().wait()  # play until Ctrl-C
+            else:
+                await asyncio.sleep(duration_s)
+            return 0
+
         controller = None
         for drone_id in drone_ids:
             candidate = HelloWorldController(runtime.tracker, drone_id)
@@ -145,6 +186,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="agent", description="Drone Battles autonomous client")
     parser.add_argument("--log-level", default=None, help="DEBUG/INFO/WARNING/ERROR")
     parser.add_argument(
+        "--mode",
+        choices=("play", "proof"),
+        default="play",
+        help="play = autonomous strategist-driven runtime (default); "
+        "proof = finite E1.7 hello-world out-and-back",
+    )
+    parser.add_argument(
         "--duration",
         type=float,
         default=None,
@@ -159,7 +207,7 @@ def main() -> None:
     setup_logging(args.log_level)
     cfg = load_config()
     try:
-        exit_code = asyncio.run(run(cfg, duration_s=args.duration))
+        exit_code = asyncio.run(run(cfg, mode=args.mode, duration_s=args.duration))
     except KeyboardInterrupt:
         log.info("Interrupted; transport shut down")
         exit_code = 130

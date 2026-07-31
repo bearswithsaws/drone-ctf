@@ -187,6 +187,21 @@ async def test_defend_keeps_mining_and_strikes() -> None:
     assert any(isinstance(t, Strike) for t in tasks)
 
 
+async def test_no_known_ore_generates_bootstrap_scouting() -> None:
+    ctx = await _base_context()  # no resource nodes observed
+    tasks = generate_tasks(Doctrine.EXPAND, ctx, _assessment(resource_nodes=0), StrategistConfig())
+    scout = [t for t in tasks if t.kind == "scout_sector"]
+    assert len(scout) == 1
+    assert scout[0].max_assignees == 2
+    # And it disappears once a node is known.
+    await ctx.world.observe_tile(
+        TileObservation(q=5, r=5, has_resource=True, resource_type="titanium_ore"), cycle=1
+    )
+    tasks = generate_tasks(Doctrine.EXPAND, ctx, _assessment(resource_nodes=1), StrategistConfig())
+    assert not any(t.kind == "scout_sector" for t in tasks)
+    assert any(isinstance(t, MineLoop) for t in tasks)
+
+
 # --- fitness ---
 
 def test_default_fitness_prefers_closer_drone() -> None:

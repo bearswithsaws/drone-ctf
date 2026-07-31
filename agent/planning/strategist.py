@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from agent.planning.pipeliner import ControllerOutput
-from agent.planning.tasks import MineLoop, ProduceDrone, Research, Strike, Task
+from agent.planning.tasks import MineLoop, ProduceDrone, Research, ScoutSector, Strike, Task
 from agent.rules import hexmath
 
 log = logging.getLogger("agent.planning.strategist")
@@ -130,8 +130,10 @@ def assess(context, score: ScoreState, config: StrategistConfig) -> StrategicAss
             under_attack = True
             break
     if not under_attack and base_tiles:
-        threat = context.threat_map
-        if any(threat.cost_at(tile, now_cycle=now) > 0.0 for tile in base_tiles):
+        # One snapshot for all base tiles — cost_at() rebuilds the threat
+        # snapshot per call, which is O(sources) per tile.
+        costs = context.threat_map.costs_at(base_tiles, now_cycle=now)
+        if any(cost > 0.0 for cost in costs.values()):
             under_attack = True
 
     lead = score.lead
@@ -221,8 +223,10 @@ def generate_tasks(
 
     # Economy backbone: mine every known resource node (the allocator caps how
     # many drones actually take each).
+    node_count = 0
     if dropoff is not None and doctrine is not Doctrine.ALL_IN:
         for i, node in enumerate(world.resource_nodes()):
+            node_count += 1
             tasks.append(
                 MineLoop(
                     task_id=f"mine:{node.q},{node.r}",
@@ -233,6 +237,23 @@ def generate_tasks(
                 )
             )
 
+    # No known ore yet -> bootstrap scouting so the fleet isn't idle. Centered
+    # on the CC; dissolves naturally once a node is found (mine tasks appear
+    # and the changed assignment replaces the scout plan).
+    if node_count == 0 and doctrine in (Doctrine.BUILD_UP, Doctrine.EXPAND):
+        center = (0, 0)
+        cc = world.get_building(dropoff) if dropoff is not None else None
+        if cc is not None and cc.origin is not None:
+            center = cc.origin
+        tasks.append(
+            ScoutSector(
+                task_id="scout:bootstrap",
+                center=center,
+                radius=8,
+                max_assignees=2,
+            )
+        )
+
     # Research + production (building work; base controller executes).
     research_key = _next_research_key(context, config)
     if research_key is not None and doctrine in (Doctrine.BUILD_UP, Doctrine.EXPAND):
@@ -241,7 +262,14 @@ def generate_tasks(
         Doctrine.BUILD_UP,
         Doctrine.EXPAND,
     ):
-        tasks.append(ProduceDrone(task_id="produce:miner", equipment=("drill", "hopper", "sensors")))
+        # The fleet size is part of the id so the task reads as *changed* after
+        # a drone is gained or lost — a one-shot production plan re-installs.
+        tasks.append(
+            ProduceDrone(
+                task_id=f"produce:miner:{assessment.own_drones}",
+                equipment=("drill", "hopper", "sensors"),
+            )
+        )
 
     # Combat: strike known enemies when pressing or defending.
     if doctrine in (Doctrine.DEFEND, Doctrine.RAID, Doctrine.ALL_IN):
@@ -315,7 +343,8 @@ class Strategist:
     _context: object | None = field(default=None, init=False, repr=False)
     _task: asyncio.Task | None = field(default=None, init=False, repr=False)
     _stop: asyncio.Event = field(default_factory=asyncio.Event, init=False, repr=False)
-    _registered: set[tuple[str, str]] = field(default_factory=set, init=False, repr=False)
+    # (entity kind, entity id) -> task_id currently installed in the pipeliner.
+    _installed: dict[tuple[str, str], str] = field(default_factory=dict, init=False, repr=False)
 
     # PlanningStrategy protocol
     async def start(self, context) -> None:
@@ -379,23 +408,39 @@ class Strategist:
             building = self._target_building(context.world, task)
             if building is not None:
                 await self._register("building", building.building_id, building, task, context)
+
+        self._prune_installed(context)
         return doctrine
 
     async def _register(self, kind: str, entity_id: str, entity, task: Task, context) -> None:
-        """Register (or replace) an entity's controller output with the pipeliner.
-        A fresh entity is ``register``ed; one that already has a plan is switched
-        with the async ``replace_plan`` (flush + rebuild)."""
+        """Install an entity's controller output in the pipeliner, but only on
+        assignment *change*. An unchanged task is left alone — its already-
+        installed factory keeps replanning from live state, and replacing it
+        every tick would flush the server queue and defeat queue saturation.
+        A fresh entity is ``register``ed; a changed one is switched with the
+        async ``replace_plan`` (flush + rebuild)."""
+        key = (kind, entity_id)
+        if self._installed.get(key) == task.task_id:
+            return
         factory = self.controller_factories.get(task.kind)
         if factory is None:
             log.debug("no controller factory for task kind %s; allocated but not executed", task.kind)
             return
         output = factory(entity, task, context)
-        key = (kind, entity_id)
-        if key in self._registered:
+        if key in self._installed:
             await context.pipeliner.replace_plan(kind, entity_id, output)
         else:
             context.pipeliner.register(kind, entity_id, output)
-            self._registered.add(key)
+        self._installed[key] = task.task_id
+
+    def _prune_installed(self, context) -> None:
+        """Forget installations for entities that no longer exist (destroyed
+        drones / lost buildings) so the bookkeeping can't grow without bound
+        and a re-created id starts from a clean register."""
+        live = {("drone", d.drone_id) for d in context.world.drones()}
+        live |= {("building", b.building_id) for b in context.world.buildings()}
+        for key in [k for k in self._installed if k not in live]:
+            del self._installed[key]
 
     @staticmethod
     def _target_building(world, task: Task):

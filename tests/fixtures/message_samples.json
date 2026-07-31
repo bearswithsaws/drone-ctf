@@ -1,0 +1,1394 @@
+[
+  {
+    "message_id": "4a12dd39-dab9-481c-8d9c-64ef95f0c5f0",
+    "message_type": "action_completed",
+    "timestamp": 18110,
+    "subject": "Drive completed",
+    "details": {
+      "success": true,
+      "drive_direction": "forward",
+      "difficult_terrain": false
+    },
+    "action_id": "e3f5b624-f37e-416d-a7ba-0d6958d4b739",
+    "drone_id": "ca431591-fd5a-4a98-bc98-60e44ed25f8c"
+  },
+  {
+    "message_id": "5f875bd7-8971-4d26-891c-94f803311a80",
+    "message_type": "action_completed",
+    "timestamp": 26427,
+    "subject": "Identify completed",
+    "details": {
+      "success": true,
+      "target_q": 1,
+      "target_r": 0,
+      "distance": 1,
+      "identify_data": {
+        "target_q": 1,
+        "target_r": 0,
+        "terrain": 1,
+        "elevation": 0,
+        "resource": null,
+        "drones": [],
+        "building": null
+      }
+    },
+    "action_id": "98d8d1ea-7a8e-4f56-9338-7a9200f37819",
+    "drone_id": "a2f2d7df-669d-4ac7-b486-174dfae6c17f"
+  },
+  {
+    "message_id": "fba763b9-66b1-4ed5-8f42-048b8bd2bea4",
+    "message_type": "action_completed",
+    "timestamp": 276941,
+    "subject": "Repeater Activate completed",
+    "details": {
+      "success": true,
+      "active": true,
+      "direction": 4,
+      "transmit_range": 15,
+      "beam_width": 3
+    },
+    "action_id": "6bbfea07-d127-4021-9013-db6159e8ef38",
+    "drone_id": "fd6f9928-9fad-4de5-b465-b2670e773b20"
+  },
+  {
+    "message_id": "9264ce90-a876-4186-8c3c-c761a832bb13",
+    "message_type": "action_completed",
+    "timestamp": 417896,
+    "subject": "Repeater Deactivate completed",
+    "details": {
+      "success": true,
+      "active": false
+    },
+    "action_id": "abf8022e-77cf-4f66-8ce9-98295e4c97e2",
+    "drone_id": "89329fc0-2c93-4bd8-b3be-43ae6d266408"
+  },
+  {
+    "message_id": "d969ea28-cd41-47f3-9af2-5e2bd3022388",
+    "message_type": "action_completed",
+    "timestamp": 270115,
+    "subject": "Repeater Deploy completed",
+    "details": {
+      "success": true,
+      "deployed": true
+    },
+    "action_id": "d9ce14a6-03be-4b01-bdb7-83936c941136",
+    "drone_id": "fd6f9928-9fad-4de5-b465-b2670e773b20"
+  },
+  {
+    "message_id": "e7c0ae3a-bfa3-468f-8461-ed9a3654be6d",
+    "message_type": "action_completed",
+    "timestamp": 274285,
+    "subject": "Repeater Raise completed",
+    "details": {
+      "success": true,
+      "antenna_height": 20,
+      "height_change": 20
+    },
+    "action_id": "f5f9bb03-99b1-46d0-89df-f196bf5b3c8f",
+    "drone_id": "fd6f9928-9fad-4de5-b465-b2670e773b20"
+  },
+  {
+    "message_id": "f4431148-4d70-4ae8-a6a1-122835d33821",
+    "message_type": "action_completed",
+    "timestamp": 18733,
+    "subject": "Scan completed",
+    "details": {
+      "success": true,
+      "scan_range": 5,
+      "tiles_scanned": 45,
+      "scan_data": {
+        "tiles": [
+          {
+            "coordinates": [
+              -1,
+              -1
+            ],
+            "distance": 1,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              -1,
+              0
+            ],
+            "distance": 1,
+            "terrain": "impassable",
+            "terrain_type": 3,
+            "elevation": 14,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              0,
+              -1
+            ],
+            "distance": 1,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              0,
+              1
+            ],
+            "distance": 1,
+            "terrain": "impassable",
+            "terrain_type": 3,
+            "elevation": 13,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              1,
+              -1
+            ],
+            "distance": 1,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": true,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              1,
+              0
+            ],
+            "distance": 1,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              -2,
+              -1
+            ],
+            "distance": 2,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              -2,
+              0
+            ],
+            "distance": 2,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              -1,
+              -2
+            ],
+            "distance": 2,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              0,
+              -2
+            ],
+            "distance": 2,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              1,
+              -2
+            ],
+            "distance": 2,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              1,
+              1
+            ],
+            "distance": 2,
+            "terrain": "impassable",
+            "terrain_type": 3,
+            "elevation": 10,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              2,
+              1
+            ],
+            "distance": 2,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              -3,
+              -2
+            ],
+            "distance": 3,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              -3,
+              -1
+            ],
+            "distance": 3,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              -2,
+              -2
+            ],
+            "distance": 3,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              -1,
+              -3
+            ],
+            "distance": 3,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              0,
+              -3
+            ],
+            "distance": 3,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              1,
+              -3
+            ],
+            "distance": 3,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              3,
+              0
+            ],
+            "distance": 3,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              3,
+              1
+            ],
+            "distance": 3,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              -4,
+              -2
+            ],
+            "distance": 4,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              -4,
+              -1
+            ],
+            "distance": 4,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              -4,
+              0
+            ],
+            "distance": 4,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              -3,
+              -3
+            ],
+            "distance": 4,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              -2,
+              -3
+            ],
+            "distance": 4,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": true,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              -1,
+              -4
+            ],
+            "distance": 4,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              0,
+              -4
+            ],
+            "distance": 4,
+            "terrain": "difficult",
+            "terrain_type": 2,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              1,
+              -4
+            ],
+            "distance": 4,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              2,
+              -3
+            ],
+            "distance": 4,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              3,
+              2
+            ],
+            "distance": 4,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              4,
+              1
+            ],
+            "distance": 4,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              4,
+              2
+            ],
+            "distance": 4,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              -5,
+              -3
+            ],
+            "distance": 5,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              -5,
+              -2
+            ],
+            "distance": 5,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": true,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              -5,
+              -1
+            ],
+            "distance": 5,
+            "terrain": "impassable",
+            "terrain_type": 3,
+            "elevation": 25,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              -4,
+              -3
+            ],
+            "distance": 5,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              -1,
+              -5
+            ],
+            "distance": 5,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              0,
+              -5
+            ],
+            "distance": 5,
+            "terrain": "difficult",
+            "terrain_type": 2,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              1,
+              -5
+            ],
+            "distance": 5,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              2,
+              -4
+            ],
+            "distance": 5,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              4,
+              3
+            ],
+            "distance": 5,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              5,
+              0
+            ],
+            "distance": 5,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              5,
+              1
+            ],
+            "distance": 5,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          },
+          {
+            "coordinates": [
+              5,
+              2
+            ],
+            "distance": 5,
+            "terrain": "normal",
+            "terrain_type": 1,
+            "elevation": 0,
+            "has_resource": false,
+            "has_drone": false,
+            "has_building": false
+          }
+        ],
+        "summary": {
+          "total_tiles": 45,
+          "tiles_with_resources": 3,
+          "tiles_with_drones": 0,
+          "tiles_with_buildings": 0
+        }
+      }
+    },
+    "action_id": "2e336bd1-6951-4aed-a287-bd8147740573",
+    "drone_id": "ca431591-fd5a-4a98-bc98-60e44ed25f8c"
+  },
+  {
+    "message_id": "d3507d64-3cfe-4e3e-91d4-174f40b9b738",
+    "message_type": "action_completed",
+    "timestamp": 18096,
+    "subject": "Status completed",
+    "details": {
+      "success": true,
+      "status": {
+        "drone_id": "ca431591-fd5a-4a98-bc98-60e44ed25f8c",
+        "elevation": 0,
+        "direction": 0,
+        "speed": 1,
+        "max_battery": 4000,
+        "current_battery": 3999,
+        "max_health": 100,
+        "current_health": 100,
+        "armour": 0,
+        "equipment_slots": 6,
+        "equipment": [
+          {
+            "equipment_id": "a015535c-3f1e-4972-b7ca-62b95ef83436",
+            "equipment_type": "propulsion",
+            "name": "Propulsion",
+            "enabled_actions": [
+              "turn",
+              "drive"
+            ],
+            "weight": 10,
+            "durability": 100,
+            "max_durability": 100,
+            "destroyed": false,
+            "is_functional": true,
+            "current_level": 1
+          },
+          {
+            "equipment_id": "dd62a8d9-ad7f-4418-b301-a2ecbbb054c6",
+            "equipment_type": "drill",
+            "name": "Drill",
+            "enabled_actions": [
+              "mine"
+            ],
+            "weight": 10,
+            "durability": 100,
+            "max_durability": 100,
+            "destroyed": false,
+            "is_functional": true,
+            "current_level": 1,
+            "efficiency": 0.15
+          },
+          {
+            "equipment_id": "277bbd55-c8a8-4b52-bfa1-b88916204cc9",
+            "equipment_type": "sensors",
+            "name": "Sensors",
+            "enabled_actions": [
+              "scan",
+              "identify"
+            ],
+            "weight": 10,
+            "durability": 100,
+            "max_durability": 100,
+            "destroyed": false,
+            "is_functional": true,
+            "base_scan_range": 5,
+            "current_level": 1,
+            "current_identify_level": 1
+          },
+          {
+            "equipment_id": "ef6649bc-c542-416a-b8ad-a0b313da5dbe",
+            "equipment_type": "hopper",
+            "name": "Hopper",
+            "enabled_actions": [],
+            "weight": 10,
+            "durability": 100,
+            "max_durability": 100,
+            "destroyed": false,
+            "is_functional": true,
+            "capacity": 25,
+            "current_load": {},
+            "upgrade_tier_applied": 0
+          }
+        ],
+        "cargo": {},
+        "shields": 0,
+        "max_shields": 50,
+        "base_shields": 0,
+        "upgrade_tier_applied": 0,
+        "chassis_weight": 20,
+        "last_action_cycle": 18096,
+        "is_decoy": false,
+        "is_lucas": false,
+        "health_percentage": 1,
+        "available_equipment_slots": 2
+      }
+    },
+    "action_id": "e1eda0c9-8bce-4140-949f-9dd2a95f711c",
+    "drone_id": "ca431591-fd5a-4a98-bc98-60e44ed25f8c"
+  },
+  {
+    "message_id": "6cc1b0be-afaf-40c9-80e4-6981264892c1",
+    "message_type": "action_completed",
+    "timestamp": 18167,
+    "subject": "Turn completed",
+    "details": {
+      "success": true,
+      "turn_direction": "right",
+      "old_direction": 0,
+      "new_direction": 1
+    },
+    "action_id": "35381fd2-d9b3-49ca-b6e3-43270cfd8b2e",
+    "drone_id": "ca431591-fd5a-4a98-bc98-60e44ed25f8c"
+  },
+  {
+    "message_id": "3e0860bf-bc17-41ee-b5e4-1b5801d1d299",
+    "message_type": "action_failed",
+    "timestamp": 100176,
+    "subject": "Drive failed",
+    "details": {
+      "error": "Target tile is occupied by a building",
+      "target_q": 1,
+      "target_r": -1,
+      "building_id": "1834535b-9d81-4d34-88a7-a5da5e63d995",
+      "drone_id": "fd6f9928-9fad-4de5-b465-b2670e773b20",
+      "action_id": "680ea7b9-c44f-4ae2-97e6-1cf27ba2f719"
+    },
+    "action_id": "680ea7b9-c44f-4ae2-97e6-1cf27ba2f719",
+    "drone_id": "fd6f9928-9fad-4de5-b465-b2670e773b20"
+  },
+  {
+    "message_id": "c86aed39-1aa5-41c0-b43f-76b41fbaa960",
+    "message_type": "action_queued",
+    "timestamp": 18103,
+    "subject": "Drive queued",
+    "details": {
+      "direction": "forward",
+      "level": 1,
+      "cycles_required": 8
+    },
+    "action_id": "e3f5b624-f37e-416d-a7ba-0d6958d4b739",
+    "drone_id": "ca431591-fd5a-4a98-bc98-60e44ed25f8c"
+  },
+  {
+    "message_id": "077cd83d-fe8d-4042-932b-366664c00d86",
+    "message_type": "action_queued",
+    "timestamp": 26427,
+    "subject": "Identify queued",
+    "details": {
+      "target_q": 1,
+      "target_r": 0,
+      "level": 1,
+      "cycles_required": 1
+    },
+    "action_id": "98d8d1ea-7a8e-4f56-9338-7a9200f37819",
+    "drone_id": "a2f2d7df-669d-4ac7-b486-174dfae6c17f"
+  },
+  {
+    "message_id": "bdeb5780-22a6-46d2-8022-4bde31e33539",
+    "message_type": "action_queued",
+    "timestamp": 417896,
+    "subject": "Repeater deactivate queued",
+    "details": {
+      "cycles_required": 1
+    },
+    "action_id": "abf8022e-77cf-4f66-8ce9-98295e4c97e2",
+    "drone_id": "89329fc0-2c93-4bd8-b3be-43ae6d266408"
+  },
+  {
+    "message_id": "3f267959-16e1-40ce-98ac-10b12e00c5a8",
+    "message_type": "action_queued",
+    "timestamp": 270106,
+    "subject": "Repeater deploy queued",
+    "details": {
+      "cycles_required": 10
+    },
+    "action_id": "d9ce14a6-03be-4b01-bdb7-83936c941136",
+    "drone_id": "fd6f9928-9fad-4de5-b465-b2670e773b20"
+  },
+  {
+    "message_id": "532c4abc-3cd7-4a08-85f7-9a4230706be9",
+    "message_type": "action_queued",
+    "timestamp": 274206,
+    "subject": "Repeater raise queued",
+    "details": {
+      "target_height": 20,
+      "height_change": 20,
+      "cycles_required": 80
+    },
+    "action_id": "f5f9bb03-99b1-46d0-89df-f196bf5b3c8f",
+    "drone_id": "fd6f9928-9fad-4de5-b465-b2670e773b20"
+  },
+  {
+    "message_id": "fb093315-8643-4f29-a453-a229999c5572",
+    "message_type": "action_queued",
+    "timestamp": 276941,
+    "subject": "Repeater transmit queued",
+    "details": {
+      "direction": 4,
+      "cycles_required": 1
+    },
+    "action_id": "6bbfea07-d127-4021-9013-db6159e8ef38",
+    "drone_id": "fd6f9928-9fad-4de5-b465-b2670e773b20"
+  },
+  {
+    "message_id": "6d2b6fef-4009-4287-93ed-bc90603c4fa3",
+    "message_type": "action_queued",
+    "timestamp": 18733,
+    "subject": "Scan queued",
+    "details": {
+      "level": 1,
+      "cycles_required": 1
+    },
+    "action_id": "2e336bd1-6951-4aed-a287-bd8147740573",
+    "drone_id": "ca431591-fd5a-4a98-bc98-60e44ed25f8c"
+  },
+  {
+    "message_id": "9b62aa12-631a-4143-945c-5862781d4444",
+    "message_type": "action_queued",
+    "timestamp": 18096,
+    "subject": "Status queued",
+    "details": {
+      "cycles_required": 1
+    },
+    "action_id": "e1eda0c9-8bce-4140-949f-9dd2a95f711c",
+    "drone_id": "ca431591-fd5a-4a98-bc98-60e44ed25f8c"
+  },
+  {
+    "message_id": "45649162-9d60-40b3-8635-f72d2381752a",
+    "message_type": "action_queued",
+    "timestamp": 18162,
+    "subject": "Turn queued",
+    "details": {
+      "direction": "right",
+      "level": 1,
+      "cycles_required": 6
+    },
+    "action_id": "35381fd2-d9b3-49ca-b6e3-43270cfd8b2e",
+    "drone_id": "ca431591-fd5a-4a98-bc98-60e44ed25f8c"
+  },
+  {
+    "message_id": "bceae35c-775d-47c0-b689-8f40ad33581a",
+    "message_type": "action_rejected",
+    "timestamp": 271686,
+    "subject": "Drive forward rejected",
+    "details": {
+      "error": "Cannot move while repeater is deployed"
+    },
+    "drone_id": "fd6f9928-9fad-4de5-b465-b2670e773b20"
+  },
+  {
+    "message_id": "18a6fb3e-2c88-4ea9-b6c1-79ac12577c44",
+    "message_type": "action_rejected",
+    "timestamp": 26428,
+    "subject": "Mine rejected",
+    "details": {
+      "error": "No resource at location",
+      "resource_location": [
+        0,
+        0
+      ]
+    },
+    "drone_id": "a2f2d7df-669d-4ac7-b486-174dfae6c17f"
+  },
+  {
+    "message_id": "11c750dd-fdf0-4140-9281-2244905744b7",
+    "message_type": "action_rejected",
+    "timestamp": 448691,
+    "subject": "Repeater deactivate rejected",
+    "details": {
+      "error": "Repeater is not transmitting"
+    },
+    "drone_id": "89329fc0-2c93-4bd8-b3be-43ae6d266408"
+  },
+  {
+    "message_id": "4b17b54a-88bf-4a67-abd1-22f22c937ce7",
+    "message_type": "action_rejected",
+    "timestamp": 282131,
+    "subject": "Status rejected",
+    "details": {
+      "error": "Insufficient battery",
+      "required": 1
+    },
+    "drone_id": "fd6f9928-9fad-4de5-b465-b2670e773b20"
+  },
+  {
+    "message_id": "aecb40e0-8240-4561-9b51-144b9cb1e2c5",
+    "message_type": "building_action_completed",
+    "timestamp": 466448,
+    "subject": "Building status completed",
+    "details": {
+      "success": true,
+      "status": {
+        "building_id": "dd17cb35-a203-43fe-984b-fc44d2ca0321",
+        "building_type": "command_center",
+        "owner_id": "8e9939fa-ad0c-4a1d-a8e0-d845d28f8ef8",
+        "size": [
+          3,
+          3
+        ],
+        "max_health": 1200,
+        "current_health": 1200,
+        "armour": 25,
+        "max_shields": 300,
+        "shields": 0,
+        "power_generation": 0,
+        "target_efficiency": 1,
+        "enabled_actions": [
+          "unload_drone",
+          "load_drone",
+          "build_building",
+          "status_report",
+          "status",
+          "research_upgrade",
+          "cancel_research",
+          "repair"
+        ],
+        "under_construction": false,
+        "coordinates": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            1
+          ],
+          [
+            0,
+            2
+          ],
+          [
+            1,
+            0
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            0
+          ],
+          [
+            2,
+            1
+          ],
+          [
+            2,
+            2
+          ]
+        ],
+        "stored_resources": {
+          "titanium_parts": 0,
+          "battery_materials": 0,
+          "enriched_unobtanium": 0
+        },
+        "construction_queue": [],
+        "current_construction": null,
+        "construction_progress": 0,
+        "resource_capacity": 400,
+        "available_capacity": 400,
+        "buildable_buildings": [
+          "solar_panel_array",
+          "refiner",
+          "drone_charging_station",
+          "drone_production_plant",
+          "drone_equipment_production_plant",
+          "drone_repair_station",
+          "laser_turret",
+          "missile_turret",
+          "auto_cannon_turret",
+          "silo",
+          "battery_array",
+          "shield_array",
+          "sensor_array",
+          "point_defense_system",
+          "lucas_launcher"
+        ],
+        "build_range": 10,
+        "unload_range": 1
+      }
+    },
+    "action_id": "f2c38fa9-ba40-44ff-a233-0519305853ff",
+    "building_id": "dd17cb35-a203-43fe-984b-fc44d2ca0321"
+  },
+  {
+    "message_id": "f1a861ed-52f5-4c67-9dd3-569d3d4327de",
+    "message_type": "building_action_completed",
+    "timestamp": 1022094,
+    "subject": "Building status_report completed",
+    "details": {
+      "success": true,
+      "summary": {
+        "total_drones": 2,
+        "active_drones": 2,
+        "total_buildings": 8,
+        "active_buildings": 8,
+        "powered_buildings": 8,
+        "command_center_resources": {
+          "titanium_parts": 0,
+          "battery_materials": 0,
+          "enriched_unobtanium": 0
+        },
+        "cycle": 1022094
+      },
+      "drones": [
+        {
+          "drone_id": "469b0e85-4308-4f95-ab2e-d0b162a9431d",
+          "location": [
+            4,
+            0
+          ]
+        },
+        {
+          "drone_id": "b9d53400-a227-4681-9f67-73f23119c552",
+          "location": [
+            4,
+            1
+          ]
+        }
+      ],
+      "buildings": [
+        {
+          "building_id": "62c644f3-1c5f-4820-8cf3-89a8f7f2484c",
+          "building_type": "command_center",
+          "origin": [
+            0,
+            0
+          ],
+          "coordinates": [
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              0,
+              2
+            ],
+            [
+              1,
+              0
+            ],
+            [
+              1,
+              1
+            ],
+            [
+              1,
+              2
+            ],
+            [
+              2,
+              0
+            ],
+            [
+              2,
+              1
+            ],
+            [
+              2,
+              2
+            ]
+          ]
+        },
+        {
+          "building_id": "ab0a9f22-2258-4dc6-b608-5c3716faf365",
+          "building_type": "solar_panel_array",
+          "origin": [
+            -2,
+            -2
+          ],
+          "coordinates": [
+            [
+              -2,
+              -2
+            ]
+          ]
+        },
+        {
+          "building_id": "125e02df-e4e3-4e25-a8b4-d56f4db1cc14",
+          "building_type": "battery_array",
+          "origin": [
+            1,
+            -2
+          ],
+          "coordinates": [
+            [
+              1,
+              -2
+            ]
+          ]
+        },
+        {
+          "building_id": "3106d0e3-5c8d-4596-9bb0-4227355fd4b6",
+          "building_type": "drone_charging_station",
+          "origin": [
+            4,
+            -2
+          ],
+          "coordinates": [
+            [
+              4,
+              -2
+            ]
+          ]
+        },
+        {
+          "building_id": "c9c3cf02-630d-4c76-8472-7ffe7f7a6e2c",
+          "building_type": "drone_repair_station",
+          "origin": [
+            7,
+            -2
+          ],
+          "coordinates": [
+            [
+              7,
+              -2
+            ]
+          ]
+        },
+        {
+          "building_id": "2b2425c8-4810-4d7c-a4d5-dccaf4eae3e2",
+          "building_type": "drone_production_plant",
+          "origin": [
+            -4,
+            2
+          ],
+          "coordinates": [
+            [
+              -4,
+              2
+            ],
+            [
+              -4,
+              3
+            ],
+            [
+              -4,
+              4
+            ],
+            [
+              -3,
+              2
+            ],
+            [
+              -3,
+              3
+            ],
+            [
+              -3,
+              4
+            ],
+            [
+              -2,
+              2
+            ],
+            [
+              -2,
+              3
+            ],
+            [
+              -2,
+              4
+            ]
+          ]
+        },
+        {
+          "building_id": "3e0bdf3e-f038-49e6-9349-07b19c543f2a",
+          "building_type": "drone_equipment_production_plant",
+          "origin": [
+            4,
+            2
+          ],
+          "coordinates": [
+            [
+              4,
+              2
+            ],
+            [
+              4,
+              3
+            ],
+            [
+              4,
+              4
+            ],
+            [
+              5,
+              2
+            ],
+            [
+              5,
+              3
+            ],
+            [
+              5,
+              4
+            ],
+            [
+              6,
+              2
+            ],
+            [
+              6,
+              3
+            ],
+            [
+              6,
+              4
+            ]
+          ]
+        },
+        {
+          "building_id": "efd1f3f1-8b00-4464-b6f5-442d4d964478",
+          "building_type": "refiner",
+          "origin": [
+            0,
+            6
+          ],
+          "coordinates": [
+            [
+              0,
+              6
+            ],
+            [
+              0,
+              7
+            ],
+            [
+              1,
+              6
+            ],
+            [
+              1,
+              7
+            ]
+          ]
+        }
+      ],
+      "drone_count": 2,
+      "building_count": 8
+    },
+    "action_id": "378fcaaf-3ad3-4490-83fe-0aaca1a75f3f",
+    "building_id": "62c644f3-1c5f-4820-8cf3-89a8f7f2484c"
+  },
+  {
+    "message_id": "ebd069ef-0bd0-45fe-a078-49355e9dbf45",
+    "message_type": "building_action_queued",
+    "timestamp": 466448,
+    "subject": "Building status queued",
+    "details": {
+      "cycles": 1,
+      "efficiency": 1
+    },
+    "action_id": "f2c38fa9-ba40-44ff-a233-0519305853ff",
+    "building_id": "dd17cb35-a203-43fe-984b-fc44d2ca0321"
+  },
+  {
+    "message_id": "089a6ff4-5d16-490b-9af5-d53987b9eac4",
+    "message_type": "building_action_queued",
+    "timestamp": 1022090,
+    "subject": "Building status_report queued",
+    "details": {
+      "cycles": 5,
+      "efficiency": 0.2
+    },
+    "action_id": "378fcaaf-3ad3-4490-83fe-0aaca1a75f3f",
+    "building_id": "62c644f3-1c5f-4820-8cf3-89a8f7f2484c"
+  },
+  {
+    "message_id": "094aefa6-a1f1-4db5-b167-764b7c1f981e",
+    "message_type": "info",
+    "timestamp": 17960,
+    "subject": "Match resumed - actions are enabled again",
+    "details": {
+      "match_state": "active"
+    }
+  },
+  {
+    "message_id": "b33f761d-2621-4d4c-83c2-374a8549f8a0",
+    "message_type": "warning",
+    "timestamp": 280370,
+    "subject": "Repeater auto-deactivated",
+    "details": {
+      "drone_id": "fd6f9928-9fad-4de5-b465-b2670e773b20",
+      "reason": "Insufficient battery",
+      "battery_remaining": 0
+    },
+    "drone_id": "fd6f9928-9fad-4de5-b465-b2670e773b20"
+  }
+]

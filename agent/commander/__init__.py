@@ -1,5 +1,11 @@
-"""Commander API DTOs and facade."""
+"""Commander API, state stream, and versioned control-plane contract."""
 
+from agent.commander.api import (
+    TOPIC_COMMANDER_ALERT,
+    TOPIC_PLAN_CHANGED,
+    CommanderAPI,
+    create_app,
+)
 from agent.commander.contract import (
     CONTRACT_VERSION,
     Alert,
@@ -36,6 +42,7 @@ from agent.commander.contract import (
 
 __all__ = [
     "CONTRACT_VERSION",
+    "CommanderAPI",
     "Alert",
     "AlertEvent",
     "BuildingState",
@@ -60,10 +67,13 @@ __all__ = [
     "SquadOrderDirective",
     "StanceDirective",
     "StateSnapshot",
+    "TOPIC_COMMANDER_ALERT",
+    "TOPIC_PLAN_CHANGED",
     "TileRemoved",
     "TileState",
     "TileUpsert",
     "WorldChange",
     "WorldDiff",
     "WorldDiffEvent",
+    "create_app",
 ]

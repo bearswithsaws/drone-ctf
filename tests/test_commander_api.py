@@ -8,7 +8,14 @@ import pytest
 
 from agent.bus import EventBus
 from agent.commander.api import CommanderAPI, TOPIC_COMMANDER_ALERT, TOPIC_PLAN_CHANGED
-from agent.commander.contract import Alert, PlanSnapshot
+from agent.commander.contract import (
+    Alert,
+    Coordinate,
+    PlanAssignment,
+    PlannedPath,
+    PlanSnapshot,
+    PlanTask,
+)
 from agent.world.model import TileObservation, WorldModel
 from agent.world.tiles import Source
 from agent.world.tracks import BearingSighting, Sighting, SightingSource, TrackStore
@@ -58,6 +65,72 @@ async def test_get_state_returns_initial_versioned_snapshot(commander: Commander
         }
     ]
     assert body["drones"][0]["drone_id"] == "drone-1"
+
+
+async def test_get_plan_returns_initial_empty_snapshot(commander: CommanderAPI) -> None:
+    transport = httpx.ASGITransport(app=commander.app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/v1/plan")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "contract_version": "1.0",
+        "sequence": 0,
+        "cycle": 0,
+        "tasks": [],
+        "assignments": [],
+        "paths": [],
+    }
+
+
+async def test_get_plan_returns_latest_live_plan(commander: CommanderAPI) -> None:
+    first = PlanSnapshot(
+        contract_version="1.0",
+        sequence=1,
+        cycle=19,
+        tasks=[],
+        assignments=[],
+        paths=[],
+    )
+    latest = PlanSnapshot(
+        contract_version="1.0",
+        sequence=2,
+        cycle=20,
+        tasks=[
+            PlanTask(
+                task_id="mine-iron",
+                kind="mine_loop",
+                priority=1.5,
+                max_assignees=2,
+                parameters={"dropoff_id": "refinery-1", "resource_type": "iron"},
+            )
+        ],
+        assignments=[
+            PlanAssignment(
+                entity_id="drone-1",
+                task_id="mine-iron",
+                fitness=0.875,
+                pinned=False,
+                retained=True,
+            )
+        ],
+        paths=[
+            PlannedPath(
+                entity_id="drone-1",
+                coordinates=[Coordinate(q=1, r=2), Coordinate(q=2, r=2)],
+            )
+        ],
+    )
+
+    await commander.bus.publish(TOPIC_PLAN_CHANGED, first)
+    await commander.bus.publish(TOPIC_PLAN_CHANGED, latest)
+
+    transport = httpx.ASGITransport(app=commander.app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/v1/plan")
+
+    assert response.status_code == 200
+    assert response.json() == latest.model_dump(mode="json")
 
 
 async def test_world_mutations_emit_incremental_diffs(commander: CommanderAPI) -> None:

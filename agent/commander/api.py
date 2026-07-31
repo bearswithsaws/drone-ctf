@@ -1,9 +1,9 @@
 """Commander HTTP snapshot and Socket.IO update stream.
 
 The commander facade projects the agent's internal dataclasses onto the
-versioned DTOs in :mod:`agent.commander.contract`.  It subscribes to the world
-and track stores instead of polling them, which gives the UI one initial
-``GET /v1/state`` snapshot followed by small, sequence-numbered diffs.
+versioned DTOs in :mod:`agent.commander.contract`.  It subscribes to the world,
+track, and planning stores instead of polling them, which gives the UI current
+``GET /v1/state`` and ``GET /v1/plan`` snapshots plus sequence-numbered updates.
 """
 
 from __future__ import annotations
@@ -163,6 +163,14 @@ class CommanderAPI:
         self._buildings: dict[str, BuildingState] = {}
         self._tracks: dict[str, EnemyTrackState] = {}
         self._cycle = world.cycle
+        self._plan = PlanSnapshot(
+            contract_version=CONTRACT_VERSION,
+            sequence=0,
+            cycle=self._cycle,
+            tasks=[],
+            assignments=[],
+            paths=[],
+        )
         self._refresh_all()
 
         self._unsubscribers = [
@@ -185,6 +193,12 @@ class CommanderAPI:
             response_model=Directive,
             status_code=status.HTTP_202_ACCEPTED,
         )
+        self.http.add_api_route(
+            "/v1/plan",
+            self.plan,
+            methods=["GET"],
+            response_model=PlanSnapshot,
+        )
 
     async def state(self) -> StateSnapshot:
         """Return an atomic snapshot aligned with the diff sequence."""
@@ -201,10 +215,22 @@ class CommanderAPI:
                 enemy_tracks=[self._tracks[key] for key in sorted(self._tracks)],
             )
 
-    async def publish_plan(self, plan: PlanSnapshot | Mapping[str, Any]) -> None:
-        """Push a validated planning snapshot to all commander clients."""
+    async def plan(self) -> PlanSnapshot:
+        """Return the latest complete planning snapshot."""
 
-        snapshot = plan if isinstance(plan, PlanSnapshot) else PlanSnapshot.model_validate(plan)
+        async with self._lock:
+            return self._plan.model_copy(deep=True)
+
+    async def publish_plan(self, plan: PlanSnapshot | Mapping[str, Any]) -> None:
+        """Retain and push a validated planning snapshot to commander clients."""
+
+        snapshot = (
+            plan.model_copy(deep=True)
+            if isinstance(plan, PlanSnapshot)
+            else PlanSnapshot.model_validate(plan)
+        )
+        async with self._lock:
+            self._plan = snapshot
         await self._emit("plan_changed", snapshot)
 
     async def submit_directive(self, directive: Directive) -> Directive:

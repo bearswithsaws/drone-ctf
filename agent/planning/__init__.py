@@ -1,6 +1,14 @@
 """Planning primitives and controller orchestration."""
 
+from agent.planning.allocator import (
+    AllocationResult,
+    Allocator,
+    Assignment,
+    GreedyAllocator,
+    TaskAllocator,
+)
 from agent.planning.pathfind import (
+    MovementProfile,
     PathResult,
     Pathfinder,
     PathfindingConfig,
@@ -21,12 +29,33 @@ from agent.planning.pipeliner import (
     QueueFlushError,
     QueuePollError,
 )
+from agent.planning.tasks import (
+    DeployRepeater,
+    Escort,
+    LayMines,
+    MineLoop,
+    ProduceDrone,
+    Research,
+    ScoutSector,
+    Strike,
+    Task,
+    TaskType,
+)
 
 __all__ = [
+    "AllocationResult",
+    "Allocator",
+    "Assignment",
     "DEFAULT_MAX_DEPTH",
     "DEFAULT_MIN_DEPTH",
     "DEFAULT_TARGET_DEPTH",
     "InvalidationResult",
+    "GreedyAllocator",
+    "DeployRepeater",
+    "Escort",
+    "LayMines",
+    "MineLoop",
+    "MovementProfile",
     "PathResult",
     "Pathfinder",
     "PathfindingConfig",
@@ -34,9 +63,16 @@ __all__ = [
     "PipelineStatus",
     "Pipeliner",
     "PlannedAction",
+    "ProduceDrone",
     "QueueFlushError",
     "QueuePollError",
+    "Research",
+    "ScoutSector",
     "SearchLimitExceeded",
+    "Strike",
+    "Task",
+    "TaskAllocator",
+    "TaskType",
     "compile_path",
     "find_path",
 ]

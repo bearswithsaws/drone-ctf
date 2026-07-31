@@ -15,11 +15,13 @@ from itertools import count
 
 from agent.planning.pipeliner import PlannedAction
 from agent.rules.hexmath import get_neighbor, hex_distance_cube
+from agent.transport.action_tracker import Precondition
 from agent.world.model import WorldModel
 from agent.world.tiles import Coord, Terrain, TileBelief
 
 TileCost = Callable[[Coord], float]
 AllowedTiles = Container[Coord] | Callable[[Coord], bool]
+MotionPreconditionFactory = Callable[[Coord, int], Precondition]
 
 DEFAULT_MOVE_COST = 1.0
 DEFAULT_THREAT_WEIGHT = 10.0
@@ -30,6 +32,29 @@ DEFAULT_MAX_EXPANSIONS = 100_000
 
 def _zero_cost(_coord: Coord) -> float:
     return 0.0
+
+
+async def _never_retry() -> bool:
+    return False
+
+
+@dataclass(frozen=True, slots=True)
+class MovementProfile:
+    """Traversal capabilities that affect terrain and occupied tiles.
+
+    Ground movement is the conservative default.  Callers may enable building
+    overflight only after establishing that the drone's elevation clears the
+    known footprint; unknown building clearance remains the caller's concern.
+    """
+
+    ignores_difficult_terrain: bool = False
+    can_overfly_buildings: bool = False
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.ignores_difficult_terrain, bool):
+            raise ValueError("ignores_difficult_terrain must be a boolean")
+        if not isinstance(self.can_overfly_buildings, bool):
+            raise ValueError("can_overfly_buildings must be a boolean")
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,10 +98,21 @@ class PathResult:
 
         return self.path
 
-    def compile(self, initial_heading: int, *, level: int = 1) -> tuple[PlannedAction, ...]:
+    def compile(
+        self,
+        initial_heading: int,
+        *,
+        level: int = 1,
+        precondition_factory: MotionPreconditionFactory | None = None,
+    ) -> tuple[PlannedAction, ...]:
         """Compile this route into actions accepted by :class:`Pipeliner`."""
 
-        return compile_path(self.path, initial_heading, level=level)
+        return compile_path(
+            self.path,
+            initial_heading,
+            level=level,
+            precondition_factory=precondition_factory,
+        )
 
 
 class SearchLimitExceeded(RuntimeError):
@@ -85,6 +121,10 @@ class SearchLimitExceeded(RuntimeError):
 
 class Pathfinder:
     """A* over known and unknown odd-q hex tiles.
+
+    Construction captures a detached tile snapshot and snapshots cost providers
+    that expose a ``snapshot()`` method (including :class:`ThreatMap`).  Construct
+    on the event-loop thread, then ``find_path`` can safely run in an executor.
 
     ``threat_cost`` is normally a :class:`agent.world.threat.ThreatMap`.
     ``comms_risk`` is injectable because the empirical E4 loss model is learned
@@ -99,11 +139,14 @@ class Pathfinder:
         threat_cost: TileCost | None = None,
         comms_risk: TileCost | None = None,
         config: PathfindingConfig | None = None,
+        movement: MovementProfile | None = None,
     ) -> None:
-        self._world = world
-        self._threat_cost = threat_cost or _zero_cost
-        self._comms_risk = comms_risk or _zero_cost
+        state = world.snapshot_state()
+        self._tiles = {tile.coord: tile for tile in state.tiles}
+        self._threat_cost = _snapshot_cost(threat_cost)
+        self._comms_risk = _snapshot_cost(comms_risk)
         self.config = config or PathfindingConfig()
+        self.movement = movement or MovementProfile()
 
     def find_path(
         self,
@@ -124,8 +167,8 @@ class Pathfinder:
         _validate_coord(goal, "goal")
         if not _is_allowed(start, allowed) or not _is_allowed(goal, allowed):
             return None
-        goal_tile = self._world.get_tile(goal)
-        if goal_tile is not None and not goal_tile.passable:
+        goal_tile = self._tiles.get(goal)
+        if not self._can_enter(goal_tile):
             return None
         if start == goal:
             return PathResult((start,), 0.0, 0)
@@ -159,8 +202,8 @@ class Pathfinder:
                 neighbor = get_neighbor(*current, direction)
                 if not _is_allowed(neighbor, allowed):
                     continue
-                tile = self._world.get_tile(neighbor)
-                if tile is not None and not tile.passable:
+                tile = self._tiles.get(neighbor)
+                if not self._can_enter(tile):
                     continue
 
                 candidate_cost = current_cost + self._entry_cost(neighbor, tile)
@@ -182,7 +225,11 @@ class Pathfinder:
     def _entry_cost(self, coord: Coord, tile: TileBelief | None) -> float:
         movement = self.config.move_cost
         unknown = tile is None or tile.terrain_type is None
-        if tile is not None and tile.terrain_type == Terrain.DIFFICULT:
+        if (
+            tile is not None
+            and tile.terrain_type == Terrain.DIFFICULT
+            and not self.movement.ignores_difficult_terrain
+        ):
             movement *= 2
 
         threat = _checked_cost(self._threat_cost(coord), "threat_cost", coord)
@@ -194,6 +241,13 @@ class Pathfinder:
             + (self.config.unknown_penalty if unknown else 0.0)
         )
 
+    def _can_enter(self, tile: TileBelief | None) -> bool:
+        if tile is None:
+            return True
+        if not tile.passable:
+            return False
+        return not tile.has_building or self.movement.can_overfly_buildings
+
 
 def find_path(
     world: WorldModel,
@@ -203,6 +257,7 @@ def find_path(
     threat_cost: TileCost | None = None,
     comms_risk: TileCost | None = None,
     config: PathfindingConfig | None = None,
+    movement: MovementProfile | None = None,
     allowed: AllowedTiles | None = None,
 ) -> PathResult | None:
     """Convenience wrapper for one A* search."""
@@ -212,6 +267,7 @@ def find_path(
         threat_cost=threat_cost,
         comms_risk=comms_risk,
         config=config,
+        movement=movement,
     ).find_path(start, goal, allowed=allowed)
 
 
@@ -220,12 +276,15 @@ def compile_path(
     initial_heading: int,
     *,
     level: int = 1,
+    precondition_factory: MotionPreconditionFactory | None = None,
 ) -> tuple[PlannedAction, ...]:
     """Compile adjacent path coordinates into clockwise turns and forward drives.
 
     Each propulsion turn changes heading by one hex-side.  The shortest turn
     sequence is emitted before every forward drive; a 180-degree tie is made
-    deterministic by choosing clockwise turns.
+    deterministic by choosing clockwise turns.  Motion retries fail closed by
+    default: a controller that can verify expected position and heading may
+    provide ``precondition_factory`` to safely recover genuinely lost commands.
     """
 
     coordinates = tuple(path)
@@ -250,15 +309,22 @@ def compile_path(
         turn_direction = 1 if clockwise <= 3 else -1
         turn_count = clockwise if clockwise <= 3 else 6 - clockwise
         for _ in range(turn_count):
+            precondition = _motion_precondition(precondition_factory, current, heading)
             actions.append(
                 PlannedAction(
                     "propulsion/turn",
                     {"direction": turn_direction, "level": level},
+                    precondition=precondition,
                 )
             )
             heading = (heading + turn_direction) % 6
+        precondition = _motion_precondition(precondition_factory, current, heading)
         actions.append(
-            PlannedAction("propulsion/drive", {"direction": 1, "level": level})
+            PlannedAction(
+                "propulsion/drive",
+                {"direction": 1, "level": level},
+                precondition=precondition,
+            )
         )
     return tuple(actions)
 
@@ -290,6 +356,29 @@ def _is_allowed(coord: Coord, allowed: AllowedTiles | None) -> bool:
     return coord in allowed
 
 
+def _snapshot_cost(provider: TileCost | None) -> TileCost:
+    if provider is None:
+        return _zero_cost
+    snapshot = getattr(provider, "snapshot", None)
+    frozen = snapshot() if callable(snapshot) else provider
+    if not callable(frozen):
+        raise TypeError("tile-cost snapshot must be callable")
+    return frozen
+
+
+def _motion_precondition(
+    factory: MotionPreconditionFactory | None,
+    position: Coord,
+    heading: int,
+) -> Precondition:
+    if factory is None:
+        return _never_retry
+    precondition = factory(position, heading)
+    if not callable(precondition):
+        raise TypeError("precondition_factory must return a callable")
+    return precondition
+
+
 def _checked_cost(value: float, provider: str, coord: Coord) -> float:
     cost = float(value)
     if not math.isfinite(cost) or cost < 0:
@@ -315,6 +404,8 @@ __all__ = [
     "DEFAULT_MOVE_COST",
     "DEFAULT_THREAT_WEIGHT",
     "DEFAULT_UNKNOWN_PENALTY",
+    "MovementProfile",
+    "MotionPreconditionFactory",
     "PathResult",
     "Pathfinder",
     "PathfindingConfig",

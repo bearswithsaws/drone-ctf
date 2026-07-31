@@ -9,7 +9,9 @@ from agent.world.model import (
     TileObservation,
     WorldChange,
     WorldModel,
+    WorldState,
 )
+from agent.world.persistence import SnapshotError, SnapshotMetadata, WorldPersistence
 from agent.world.tiles import (
     DEFAULT_CONFIDENCE_HALF_LIFE,
     Source,
@@ -27,6 +29,7 @@ from agent.world.tracks import (
 from agent.world.threat import (
     DEFAULT_WEAPON_ENVELOPES,
     ThreatMap,
+    ThreatSnapshot,
     ThreatSource,
     WeaponEnvelope,
 )
@@ -36,6 +39,7 @@ __all__ = [
     "Rule",
     "WorldModel",
     "WorldChange",
+    "WorldState",
     "TileObservation",
     "DroneRecord",
     "BuildingRecord",
@@ -45,6 +49,9 @@ __all__ = [
     "Terrain",
     "Source",
     "DEFAULT_CONFIDENCE_HALF_LIFE",
+    "WorldPersistence",
+    "SnapshotMetadata",
+    "SnapshotError",
     "TrackStore",
     "EnemyTrack",
     "Sighting",
@@ -52,6 +59,7 @@ __all__ = [
     "SightingSource",
     "TOPIC_TRACK_CHANGED",
     "ThreatMap",
+    "ThreatSnapshot",
     "ThreatSource",
     "WeaponEnvelope",
     "DEFAULT_WEAPON_ENVELOPES",

@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+"""Assert the final agent state produced by a recorded telemetry session."""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import sys
+from pathlib import Path
+
+from agent.replay import ReplayFormatError, ReplayMismatch, replay_and_assert
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Replay telemetry JSONL through world ingest and the entity simulator."
+    )
+    parser.add_argument("recording", type=Path, help="recorder-produced JSONL session")
+    parser.add_argument(
+        "--expected",
+        type=Path,
+        required=True,
+        help="JSON snapshot that the final replay state must equal",
+    )
+    args = parser.parse_args(argv)
+
+    try:
+        result = asyncio.run(replay_and_assert(args.recording, args.expected))
+    except (ReplayFormatError, ReplayMismatch) as exc:
+        print(f"replay failed: {exc}", file=sys.stderr)
+        return 1
+
+    print(
+        f"replay passed: {result.messages_replayed} messages from "
+        f"{result.records_seen} records matched {args.expected}"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

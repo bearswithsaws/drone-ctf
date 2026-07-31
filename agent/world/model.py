@@ -12,7 +12,7 @@ converting relative wire coordinates to absolute is the ingest layer's job.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Iterable
 
 from agent.bus import EventBus
@@ -79,7 +79,7 @@ class WorldChange:
     """Describes what changed, published on the bus after a mutation.
 
     ``kind`` is one of: ``tile``, ``drone``, ``building``,
-    ``enemy_building``, ``resource``, ``removed``, ``cycle``. ``keys``
+    ``enemy_building``, ``resource``, ``removed``, ``cycle``, ``restored``. ``keys``
     identifies the affected entities (tile coords, drone/building ids).
     ``cycle`` is the model's current cycle.
     """
@@ -87,6 +87,24 @@ class WorldChange:
     kind: str
     keys: tuple = ()
     cycle: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class WorldState:
+    """A detached, internally consistent checkpoint of a :class:`WorldModel`.
+
+    The records inside the tuples are defensive copies.  Capturing a state is
+    synchronous on purpose: in the single-event-loop world-model architecture,
+    no mutation can interleave with the capture.  Persistence can then encode
+    and write this detached value in a worker thread.
+    """
+
+    cycle: int
+    confidence_half_life: int
+    tiles: tuple[TileBelief, ...]
+    drones: tuple[DroneRecord, ...]
+    buildings: tuple[BuildingRecord, ...]
+    enemy_buildings: tuple[EnemyBuildingRecord, ...]
 
 
 @dataclass(slots=True)
@@ -157,6 +175,48 @@ class WorldModel:
         if tile is None:
             return 0.0
         return tile.confidence(self._cycle, self._half_life)
+
+    def snapshot_state(self) -> WorldState:
+        """Return a detached checkpoint suitable for background persistence."""
+        return WorldState(
+            cycle=self._cycle,
+            confidence_half_life=self._half_life,
+            tiles=tuple(replace(tile) for _, tile in sorted(self._tiles.items())),
+            drones=tuple(replace(rec) for _, rec in sorted(self._drones.items())),
+            buildings=tuple(replace(rec) for _, rec in sorted(self._buildings.items())),
+            enemy_buildings=tuple(
+                replace(rec) for _, rec in sorted(self._enemy_buildings.items())
+            ),
+        )
+
+    async def restore_state(self, state: WorldState) -> None:
+        """Atomically replace all beliefs from a previously captured checkpoint.
+
+        Resource-node membership is derived from tile beliefs rather than
+        persisted separately, preventing the two representations from drifting.
+        One aggregate event is emitted after the replacement; replaying every
+        historical mutation at startup would be both misleading and expensive.
+        """
+        if state.confidence_half_life <= 0:
+            raise ValueError("confidence_half_life must be positive")
+
+        tiles = {tile.coord: replace(tile) for tile in state.tiles}
+        drones = {rec.drone_id: replace(rec) for rec in state.drones}
+        buildings = {rec.building_id: replace(rec) for rec in state.buildings}
+        enemy_buildings = {
+            rec.building_id: replace(rec) for rec in state.enemy_buildings
+        }
+
+        self._cycle = state.cycle
+        self._half_life = state.confidence_half_life
+        self._tiles = tiles
+        self._drones = drones
+        self._buildings = buildings
+        self._enemy_buildings = enemy_buildings
+        self._resource_nodes = {
+            coord for coord, tile in tiles.items() if tile.has_resource
+        }
+        await self._emit(WorldChange("restored", (), self._cycle))
 
     async def observe_tile(
         self, obs: _Observation, *, cycle: int, source: Source = Source.SCAN

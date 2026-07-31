@@ -9,7 +9,9 @@ from agent.world.model import (
     TileObservation,
     WorldChange,
     WorldModel,
+    WorldState,
 )
+from agent.world.persistence import SnapshotError, SnapshotMetadata, WorldPersistence
 from agent.world.tiles import (
     DEFAULT_CONFIDENCE_HALF_LIFE,
     Source,
@@ -36,6 +38,7 @@ __all__ = [
     "Rule",
     "WorldModel",
     "WorldChange",
+    "WorldState",
     "TileObservation",
     "DroneRecord",
     "BuildingRecord",
@@ -45,6 +48,9 @@ __all__ = [
     "Terrain",
     "Source",
     "DEFAULT_CONFIDENCE_HALF_LIFE",
+    "WorldPersistence",
+    "SnapshotMetadata",
+    "SnapshotError",
     "TrackStore",
     "EnemyTrack",
     "Sighting",

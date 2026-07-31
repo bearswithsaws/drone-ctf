@@ -1,11 +1,10 @@
 """World model: our persistent belief about the map and our own assets.
 
-The model owns tile beliefs, our own drones and buildings, and the set of known
-resource nodes. Ingest (E3.2) translates parsed wire messages into calls on this
-API; every mutation publishes a :data:`TOPIC_WORLD_CHANGED` event so downstream
-consumers (threat map, planners, the commander diff stream) can react without
-polling. Enemy tracks (E3.3), the threat map (E3.4), and persistence (E3.5)
-build on top of this and are intentionally out of scope here.
+The model owns tile beliefs, our own drones and buildings, identified hostile
+buildings, and the set of known resource nodes. Ingest translates parsed wire
+messages into calls on this API; every mutation publishes a
+:data:`TOPIC_WORLD_CHANGED` event so downstream consumers (threat map, planners,
+the commander diff stream) can react without polling.
 
 Coordinates are local-absolute odd-q offset (see :mod:`agent.rules.hexmath`);
 converting relative wire coordinates to absolute is the ingest layer's job.
@@ -58,13 +57,31 @@ class BuildingRecord:
     last_seen: int = 0
 
 
+@dataclass(slots=True)
+class EnemyBuildingRecord:
+    """An identified hostile building.
+
+    Scans reveal only that a building occupies a tile; identify supplies the
+    type needed to choose a weapon envelope.  Enemy buildings live separately
+    from our authoritative status-report inventory so a friendly status sweep
+    cannot accidentally remove them.
+    """
+
+    building_id: str
+    building_type: str | None = None
+    origin: Coord | None = None
+    tiles: tuple[Coord, ...] = ()
+    last_seen: int = 0
+
+
 @dataclass(frozen=True, slots=True)
 class WorldChange:
     """Describes what changed, published on the bus after a mutation.
 
-    ``kind`` is one of: ``tile``, ``drone``, ``building``, ``resource``,
-    ``removed``, ``cycle``. ``keys`` identifies the affected entities (tile
-    coords, drone/building ids). ``cycle`` is the model's current cycle.
+    ``kind`` is one of: ``tile``, ``drone``, ``building``,
+    ``enemy_building``, ``resource``, ``removed``, ``cycle``. ``keys``
+    identifies the affected entities (tile coords, drone/building ids).
+    ``cycle`` is the model's current cycle.
     """
 
     kind: str
@@ -105,6 +122,7 @@ class WorldModel:
         self._tiles: dict[Coord, TileBelief] = {}
         self._drones: dict[str, DroneRecord] = {}
         self._buildings: dict[str, BuildingRecord] = {}
+        self._enemy_buildings: dict[str, EnemyBuildingRecord] = {}
         self._resource_nodes: set[Coord] = set()
         self._cycle = 0
 
@@ -186,6 +204,8 @@ class WorldModel:
         tile.has_building = obs.has_building
         if obs.building_id is not None:
             tile.building_id = obs.building_id
+        elif not obs.has_building:
+            tile.building_id = None
         tile.has_drone = obs.has_drone
         tile.last_seen = cycle
         tile.source = source
@@ -280,6 +300,56 @@ class WorldModel:
     async def remove_building(self, building_id: str) -> None:
         if self._buildings.pop(building_id, None) is not None:
             await self._emit(WorldChange("removed", (building_id,), self._cycle))
+
+    # --- identified enemy buildings ---
+
+    def get_enemy_building(self, building_id: str) -> EnemyBuildingRecord | None:
+        return self._enemy_buildings.get(building_id)
+
+    def enemy_buildings(self) -> Iterable[EnemyBuildingRecord]:
+        return self._enemy_buildings.values()
+
+    async def upsert_enemy_building(
+        self,
+        building_id: str,
+        *,
+        building_type: str | None = None,
+        origin: Coord | None = None,
+        tiles: Iterable[Coord] | None = None,
+        cycle: int | None = None,
+    ) -> None:
+        rec = self._enemy_buildings.get(building_id)
+        if rec is None:
+            rec = EnemyBuildingRecord(building_id=building_id)
+            self._enemy_buildings[building_id] = rec
+        if building_type is not None:
+            rec.building_type = building_type
+        if origin is not None:
+            rec.origin = origin
+        if tiles is not None:
+            rec.tiles = tuple(tiles)
+        if cycle is not None:
+            rec.last_seen = cycle
+            if cycle > self._cycle:
+                self._cycle = cycle
+        await self._emit(WorldChange("enemy_building", (building_id,), self._cycle))
+
+    async def remove_enemy_building(self, building_id: str) -> None:
+        if self._enemy_buildings.pop(building_id, None) is not None:
+            await self._emit(WorldChange("removed", (building_id,), self._cycle))
+
+    async def remove_enemy_buildings_at(self, coord: Coord) -> tuple[str, ...]:
+        """Forget hostile buildings whose known footprint includes ``coord``."""
+        removed = tuple(
+            building_id
+            for building_id, rec in self._enemy_buildings.items()
+            if coord == rec.origin or coord in rec.tiles
+        )
+        for building_id in removed:
+            self._enemy_buildings.pop(building_id, None)
+        if removed:
+            await self._emit(WorldChange("removed", removed, self._cycle))
+        return removed
 
     # --- emit ---
 

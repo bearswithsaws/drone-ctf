@@ -153,6 +153,7 @@ class Ingestor:
     async def _apply_scan(self, scan_data: dict[str, Any], origin: tuple[int, int], cycle: int) -> None:
         obs: list[TileObservation] = []
         enemy_coords: list[tuple[int, int]] = []
+        empty_building_coords: list[tuple[int, int]] = []
         for tile in scan_data.get("tiles", []) or []:
             rel = _coord(tile.get("coordinates"))
             if rel is None:
@@ -174,8 +175,12 @@ class Ingestor:
             # gives no identity, so this is a position-only track seed.
             if has_drone and not self._own_occupied((aq, ar)):
                 enemy_coords.append((aq, ar))
+            if not tile.get("has_building", False):
+                empty_building_coords.append((aq, ar))
         if obs:
             await self._world.observe_tiles(obs, cycle=cycle, source=Source.SCAN)
+        for coord in empty_building_coords:
+            await self._world.remove_enemy_buildings_at(coord)
         if self._tracks is not None:
             for aq, ar in enemy_coords:
                 await self._tracks.observe(Sighting(SightingSource.SCAN, aq, ar, cycle))
@@ -193,6 +198,8 @@ class Ingestor:
         rel = (int(data.get("target_q", 0)), int(data.get("target_r", 0)))
         aq, ar = relative_to_absolute(rel, origin=origin)
         resource = data.get("resource") or {}
+        building = data.get("building")
+        building_id = _building_id(building, (aq, ar))
         has_resource = bool(
             resource
             and not resource.get("depleted", False)
@@ -207,10 +214,25 @@ class Ingestor:
                 has_resource=has_resource,
                 resource_type=resource.get("ore_type") if has_resource else None,
                 resource_amount=resource.get("ore_volume") if has_resource else None,
+                has_building=bool(building),
+                building_id=building_id,
             ),
             cycle=cycle,
             source=Source.IDENTIFY,
         )
+        if building and building_id is not None:
+            # An identify of our own footprint can include friendly detail; only
+            # the other buildings belong in the hostile inventory.
+            if self._world.get_building(building_id) is None:
+                await self._world.upsert_enemy_building(
+                    building_id,
+                    building_type=_building_type(building),
+                    origin=(aq, ar),
+                    tiles=((aq, ar),),
+                    cycle=cycle,
+                )
+        else:
+            await self._world.remove_enemy_buildings_at((aq, ar))
         # Identify resolves enemy identity + decoy status at this tile.
         if self._tracks is not None:
             for d in data.get("drones", []) or []:
@@ -221,7 +243,15 @@ class Ingestor:
                 # with <=1 equipment is a decoy.
                 is_decoy = d.get("max_health") == 1 and len(d.get("equipment") or []) <= 1
                 await self._tracks.observe(
-                    Sighting(SightingSource.IDENTIFY, aq, ar, cycle, drone_id=did, is_decoy=is_decoy)
+                    Sighting(
+                        SightingSource.IDENTIFY,
+                        aq,
+                        ar,
+                        cycle,
+                        drone_id=did,
+                        is_decoy=is_decoy,
+                        equipment=_equipment_types(d.get("equipment") or []),
+                    )
                 )
 
     async def _on_drive(self, msg: dict[str, Any], cycle: int) -> None:
@@ -281,6 +311,7 @@ class Ingestor:
         building_id = msg.get("building_id")
         if building_id:
             await self._world.remove_building(building_id)
+            await self._world.remove_enemy_building(building_id)
 
     # --- helpers ---
 
@@ -323,3 +354,42 @@ def _coord(value: Any) -> tuple[int, int] | None:
         except (TypeError, ValueError):
             return None
     return None
+
+
+def _building_id(building: Any, coord: tuple[int, int]) -> str | None:
+    if not isinstance(building, dict):
+        return None
+    value = building.get("building_id") or building.get("id")
+    return str(value) if value else f"observed:{coord[0]}:{coord[1]}"
+
+
+def _building_type(building: Any) -> str | None:
+    if not isinstance(building, dict):
+        return None
+    value = building.get("building_type") or building.get("type")
+    return _normalise_equipment_name(value)
+
+
+def _equipment_types(equipment: list[Any]) -> frozenset[str]:
+    result: set[str] = set()
+    for item in equipment:
+        if isinstance(item, str):
+            name = item
+        elif isinstance(item, dict):
+            name = (
+                item.get("equipment_type")
+                or item.get("type")
+                or item.get("name")
+            )
+        else:
+            continue
+        normalised = _normalise_equipment_name(name)
+        if normalised:
+            result.add(normalised)
+    return frozenset(result)
+
+
+def _normalise_equipment_name(value: Any) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return value.strip().lower().replace("-", "_").replace(" ", "_")

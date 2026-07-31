@@ -159,6 +159,24 @@ async def test_upsert_building_footprint() -> None:
     assert set(rec.tiles) == {(0, 0), (1, 0), (0, 1)}
 
 
+async def test_enemy_buildings_are_separate_and_removable_by_observed_tile() -> None:
+    wm = WorldModel()
+    await wm.upsert_building("ours", building_type="laser_turret", origin=(0, 0))
+    await wm.upsert_enemy_building(
+        "theirs",
+        building_type="missile_turret",
+        origin=(10, 0),
+        tiles=[(10, 0)],
+        cycle=5,
+    )
+
+    assert wm.get_building("ours") is not None
+    assert wm.get_enemy_building("theirs").origin == (10, 0)
+    assert await wm.remove_enemy_buildings_at((10, 0)) == ("theirs",)
+    assert wm.get_enemy_building("theirs") is None
+    assert wm.get_building("ours") is not None
+
+
 async def test_model_works_without_bus() -> None:
     wm = WorldModel()  # bus is None
     await wm.observe_tile(TileObservation(q=0, r=0, terrain_type=1), cycle=1)

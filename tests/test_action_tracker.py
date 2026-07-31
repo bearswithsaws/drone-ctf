@@ -11,8 +11,10 @@ from agent.bus import EventBus
 from agent.transport.action_tracker import (
     TOPIC_ACTION_LIFECYCLE,
     TOPIC_ACTION_LOSS,
+    TOPIC_ACTION_SUBMITTED,
     ActionLifecycleEvent,
     ActionLossEvent,
+    ActionSubmittedEvent,
     ActionTracker,
     EntityKind,
     IntentState,
@@ -67,6 +69,7 @@ class Harness:
     clock: FakeClock
     lifecycle: list[ActionLifecycleEvent]
     losses: list[ActionLossEvent]
+    submissions: list[ActionSubmittedEvent]
 
 
 def make_harness(action_ids: list[str | None]) -> Harness:
@@ -75,6 +78,7 @@ def make_harness(action_ids: list[str | None]) -> Harness:
     bus = EventBus()
     lifecycle: list[ActionLifecycleEvent] = []
     losses: list[ActionLossEvent] = []
+    submissions: list[ActionSubmittedEvent] = []
 
     async def capture_lifecycle(_topic: str, event: ActionLifecycleEvent) -> None:
         lifecycle.append(event)
@@ -82,10 +86,14 @@ def make_harness(action_ids: list[str | None]) -> Harness:
     async def capture_loss(_topic: str, event: ActionLossEvent) -> None:
         losses.append(event)
 
+    async def capture_submission(_topic: str, event: ActionSubmittedEvent) -> None:
+        submissions.append(event)
+
     bus.subscribe(TOPIC_ACTION_LIFECYCLE, capture_lifecycle)
     bus.subscribe(TOPIC_ACTION_LOSS, capture_loss)
+    bus.subscribe(TOPIC_ACTION_SUBMITTED, capture_submission)
     tracker = ActionTracker(rest, bus, ack_timeout=lambda _distance: 1.0, clock=clock)
-    return Harness(tracker, rest, clock, lifecycle, losses)
+    return Harness(tracker, rest, clock, lifecycle, losses, submissions)
 
 
 async def submit_drive(harness: Harness, *, precondition=lambda: True) -> None:
@@ -113,6 +121,8 @@ async def test_drop_command_resubmits_then_reaches_completed() -> None:
     ]
     assert h.tracker.get("move-1").attempts == 2  # type: ignore[union-attr]
     assert [event.kind for event in h.losses] == [LossKind.COMMAND]
+    assert [event.attempt for event in h.submissions] == [1, 2]
+    assert h.submissions[0].payload == {"direction": "forward", "level": 1}
 
     await h.tracker.on_message(
         {

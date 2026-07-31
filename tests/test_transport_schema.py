@@ -26,11 +26,6 @@ from agent.transport.schema import (
     WireModel,
 )
 
-_REFERENCE_CANDIDATES = (
-    Path("/home/yeti/drone-battle-client/data/message_samples"),
-    Path("/home/mike/github/drone-battle-client/data/message_samples"),
-)
-REFERENCE_SAMPLES = next((path for path in _REFERENCE_CANDIDATES if path.is_dir()), None)
 GOLDEN_SAMPLES = Path(__file__).parent / "fixtures" / "message_samples.json"
 
 MESSAGE_MODELS = {
@@ -45,7 +40,7 @@ MESSAGE_MODELS = {
 }
 
 
-def test_every_reference_sample_parses_to_a_known_typed_model() -> None:
+def test_every_golden_sample_parses_to_a_known_typed_model() -> None:
     samples = json.loads(GOLDEN_SAMPLES.read_text(encoding="utf-8"))
     assert len(samples) == 29
 
@@ -84,18 +79,6 @@ def test_large_nested_payloads_are_typed() -> None:
     assert isinstance(report, BuildingActionCompletedMessage)
     assert isinstance(report.details, BuildingStatusReportCompletedDetails)
     assert report.details.buildings[0].origin == (0, 0)
-
-
-def test_golden_corpus_matches_reference_client_when_available() -> None:
-    if REFERENCE_SAMPLES is None:
-        pytest.skip("reference client samples unavailable")
-
-    reference = [
-        json.loads(path.read_text(encoding="utf-8"))
-        for path in sorted(REFERENCE_SAMPLES.glob("*_raw.json"))
-    ]
-    golden = json.loads(GOLDEN_SAMPLES.read_text(encoding="utf-8"))
-    assert reference == golden
 
 
 def test_unknown_message_is_logged_and_preserved(

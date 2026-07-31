@@ -1,9 +1,9 @@
 """Local accounting for values omitted from action-completed messages.
 
-The game only exposes battery, consumable, and building-resource totals in
-explicit status actions.  Between status reports, :class:`EntitySim` combines
-the action's queued details with its completion message and applies the pure
-tables in :mod:`agent.rules.costs`.
+The game only exposes battery, hopper, consumable, and building-resource totals
+in explicit status actions.  Between status reports, :class:`EntitySim`
+combines the action's queued details with its completion message and applies
+the pure tables in :mod:`agent.rules.costs`.
 
 Status completions are authoritative checkpoints.  Their values replace local
 estimates (and are not charged a second time), which keeps replay drift bounded
@@ -23,6 +23,7 @@ from agent.rules.costs import (
     AUTO_CANNON_RELOAD_COST,
     BASELINE_TIER_COST,
     BUILDING_COSTS,
+    CHARGE_RATE,
     DRONE_COST,
     EQUIPMENT_COSTS,
     LUCAS_COST,
@@ -45,6 +46,14 @@ class DroneSimState:
     total_weight: float = 0
     consumables: dict[str, int] = field(default_factory=dict)
     loaded_ammo_type: str | None = None
+    cargo: dict[str, int] = field(default_factory=dict)
+    hopper_capacity: int = 0
+
+    @property
+    def hopper_load(self) -> int:
+        """Total units currently carried in the hopper."""
+
+        return sum(max(0, amount) for amount in self.cargo.values())
 
 
 @dataclass
@@ -184,6 +193,8 @@ class EntitySim:
         total_weight: float = 0,
         consumables: Mapping[str, int] | None = None,
         loaded_ammo_type: str | None = None,
+        cargo: Mapping[str, int] | None = None,
+        hopper_capacity: int = 0,
     ) -> DroneSimState:
         """Install an explicit starting checkpoint (useful for replay/tests)."""
 
@@ -197,6 +208,8 @@ class EntitySim:
                 str(key): max(0, int(value)) for key, value in (consumables or {}).items()
             },
             loaded_ammo_type=_canonical_ammo_type(loaded_ammo_type),
+            cargo=_nonnegative_int_mapping(cargo),
+            hopper_capacity=max(0, int(hopper_capacity)),
         )
         self._drones[drone_id] = state
         return deepcopy(state)
@@ -283,7 +296,16 @@ class EntitySim:
 
         if message_type == "action_completed":
             return self._apply_drone_completion(action_id, entity_id, subject, details)
-        return self._apply_building_completion(action_id, entity_id, subject, details)
+        serviced_drone_id = _string_or_none(payload.get("drone_id")) or _string_or_none(
+            details.get("drone_id")
+        )
+        return self._apply_building_completion(
+            action_id,
+            entity_id,
+            subject,
+            details,
+            serviced_drone_id=serviced_drone_id,
+        )
 
     def replay(self, records: Iterable[Any]) -> list[SimulationDelta]:
         """Replay wire messages or telemetry envelopes in input order."""
@@ -342,6 +364,7 @@ class EntitySim:
             state.current_battery = max(0, state.current_battery - battery_spent)
 
         spent = self._apply_consumable_effect(state, subject, details)
+        self._apply_hopper_effect(state, subject, details)
         self._apply_battery_transfer(state, subject, details)
         return SimulationDelta(
             action_id=action_id,
@@ -357,6 +380,8 @@ class EntitySim:
         building_id: str | None,
         subject: str,
         details: Mapping[str, Any],
+        *,
+        serviced_drone_id: str | None,
     ) -> SimulationDelta:
         status = details.get("status")
         if _is_status_subject(subject) and isinstance(status, Mapping):
@@ -371,9 +396,7 @@ class EntitySim:
         if "status report completed" in _normalise_subject(subject):
             summary = details.get("summary")
             resources = (
-                summary.get("command_center_resources")
-                if isinstance(summary, Mapping)
-                else None
+                summary.get("command_center_resources") if isinstance(summary, Mapping) else None
             )
             if building_id is not None and isinstance(resources, Mapping):
                 existing = self._buildings.get(building_id)
@@ -391,6 +414,20 @@ class EntitySim:
             )
 
         actor = self._buildings.get(building_id) if building_id is not None else None
+        normalised = _normalise_subject(subject)
+        serviced_drone = (
+            self._drones.get(serviced_drone_id) if serviced_drone_id is not None else None
+        )
+        if "unload completed" in normalised:
+            unloaded = _merged_transfer(details, "unloaded")
+            self._subtract_cargo(serviced_drone, unloaded)
+            if actor is not None:
+                self._credit_building(actor, details, unloaded)
+        elif "charging station charge completed" in normalised or (
+            "charge completed" in normalised and serviced_drone is not None
+        ):
+            self._apply_station_charge(serviced_drone, details)
+
         cost = self._building_resource_cost(subject, details, actor)
         source = self._resource_source(actor)
         spent = _deduct_resources(source, cost) if source is not None else {}
@@ -416,6 +453,8 @@ class EntitySim:
         total_weight = max(0.0, _float_value(status.get("chassis_weight"), 0.0))
         consumables: dict[str, int] = {}
         loaded_ammo = prior.loaded_ammo_type if prior is not None else None
+        cargo = _nonnegative_int_mapping(status.get("cargo"))
+        hopper_capacity = 0
 
         for raw_item in equipment_items:
             item = _as_mapping(raw_item)
@@ -435,6 +474,11 @@ class EntitySim:
                 )
                 if candidate is not None:
                     loaded_ammo = _canonical_ammo_type(str(candidate))
+            if equipment_type == "hopper":
+                hopper_capacity = max(0, _int_value(item.get("capacity"), 0))
+                hopper_load = item.get("current_load")
+                if isinstance(hopper_load, Mapping):
+                    cargo = _nonnegative_int_mapping(hopper_load)
 
         state = DroneSimState(
             drone_id=drone_id,
@@ -443,6 +487,8 @@ class EntitySim:
             total_weight=total_weight,
             consumables=consumables,
             loaded_ammo_type=loaded_ammo,
+            cargo=cargo,
+            hopper_capacity=hopper_capacity,
         )
         self._drones[drone_id] = state
         return state
@@ -551,6 +597,105 @@ class EntitySim:
         target.current_battery = min(
             target.max_battery,
             target.current_battery + max(0, _int_value(amount, 0)),
+        )
+
+    def _apply_hopper_effect(
+        self,
+        state: DroneSimState | None,
+        subject: str,
+        details: Mapping[str, Any],
+    ) -> None:
+        if state is None:
+            return
+        normalised = _normalise_subject(subject)
+        if "mine completed" in normalised:
+            amount = max(0, _int_value(details.get("total_ore_mined"), 0))
+            if amount:
+                resource_type = _string_or_none(details.get("ore_type")) or "unknown_ore"
+                state.cargo[resource_type] = state.cargo.get(resource_type, 0) + amount
+        elif "dump hopper completed" in normalised:
+            dumped = _merged_transfer(details, "dumped")
+            if dumped:
+                self._subtract_cargo(state, dumped)
+            else:
+                resource_type = _string_or_none(details.get("resource_type"))
+                if resource_type is None:
+                    state.cargo.clear()
+                else:
+                    state.cargo.pop(resource_type, None)
+
+    @staticmethod
+    def _subtract_cargo(state: DroneSimState | None, transferred: Mapping[str, int]) -> None:
+        if state is None:
+            return
+        for resource, amount in transferred.items():
+            requested = max(0, int(amount))
+            available = state.cargo.get(resource, 0)
+            removed = min(available, requested)
+            remaining = available - removed
+            if remaining:
+                state.cargo[resource] = remaining
+            else:
+                state.cargo.pop(resource, None)
+            # Mine completions commonly omit ore_type.  Keep the total useful
+            # in that case, then reconcile the anonymous bucket when unload
+            # reports the concrete resource name.
+            anonymous = state.cargo.get("unknown_ore", 0)
+            anonymous_remaining = max(0, anonymous - (requested - removed))
+            if anonymous_remaining:
+                state.cargo["unknown_ore"] = anonymous_remaining
+            else:
+                state.cargo.pop("unknown_ore", None)
+
+    @staticmethod
+    def _credit_building(
+        state: BuildingSimState,
+        details: Mapping[str, Any],
+        transferred: Mapping[str, int],
+    ) -> None:
+        final_resources = details.get("stored_resources")
+        final_ore = details.get("stored_ore")
+        if isinstance(final_resources, Mapping) or isinstance(final_ore, Mapping):
+            retained = dict(state.stored_resources)
+            if isinstance(final_resources, Mapping):
+                retained = {
+                    resource: amount
+                    for resource, amount in retained.items()
+                    if _is_raw_ore(resource)
+                }
+                retained.update(_nonnegative_int_mapping(final_resources))
+            if isinstance(final_ore, Mapping):
+                retained = {
+                    resource: amount
+                    for resource, amount in retained.items()
+                    if not _is_raw_ore(resource)
+                }
+                retained.update(_nonnegative_int_mapping(final_ore))
+            state.stored_resources = retained
+            return
+        for resource, amount in transferred.items():
+            state.stored_resources[resource] = state.stored_resources.get(resource, 0) + max(
+                0, int(amount)
+            )
+
+    @staticmethod
+    def _apply_station_charge(state: DroneSimState | None, details: Mapping[str, Any]) -> None:
+        if state is None:
+            return
+        for field_name in ("current_battery", "battery_after", "new_battery"):
+            if field_name in details:
+                state.current_battery = min(
+                    state.max_battery,
+                    max(0, _int_value(details[field_name], state.current_battery)),
+                )
+                return
+        added = details.get(
+            "battery_added",
+            details.get("amount_charged", details.get("charge_amount", CHARGE_RATE)),
+        )
+        state.current_battery = min(
+            state.max_battery,
+            state.current_battery + max(0, _int_value(added, CHARGE_RATE)),
         )
 
     def _resource_source(self, actor: BuildingSimState | None) -> BuildingSimState | None:
@@ -673,9 +818,27 @@ def _nonnegative_int_mapping(value: Any) -> dict[str, int]:
     return {str(key): max(0, _int_value(item, 0)) for key, item in value.items()}
 
 
-def _extract_consumable_count(
-    equipment_type: str, item: Mapping[str, Any]
-) -> int | None:
+def _merged_transfer(details: Mapping[str, Any], direction: str) -> dict[str, int]:
+    """Merge the wire variants used for resource-transfer completion fields."""
+
+    fields = (
+        "transferred",
+        f"ore_{direction}",
+        f"resources_{direction}",
+        f"items_{direction}",
+    )
+    merged: dict[str, int] = {}
+    for field_name in fields:
+        for resource, amount in _nonnegative_int_mapping(details.get(field_name)).items():
+            merged[resource] = max(merged.get(resource, 0), amount)
+    return merged
+
+
+def _is_raw_ore(resource_type: str) -> bool:
+    return resource_type.endswith("_ore")
+
+
+def _extract_consumable_count(equipment_type: str, item: Mapping[str, Any]) -> int | None:
     fields = _CONSUMABLE_COUNT_FIELDS.get(equipment_type, ()) + _GENERIC_COUNT_FIELDS
     for field_name in fields:
         if field_name in item:
@@ -718,9 +881,7 @@ def _decrement_consumable(state: DroneSimState, equipment_type: str, amount: int
     return actual
 
 
-def _deduct_resources(
-    state: BuildingSimState, cost: Mapping[str, int]
-) -> dict[str, int]:
+def _deduct_resources(state: BuildingSimState, cost: Mapping[str, int]) -> dict[str, int]:
     spent: dict[str, int] = {}
     for resource, requested in cost.items():
         before = max(0, state.stored_resources.get(resource, 0))

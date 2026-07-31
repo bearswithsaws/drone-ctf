@@ -1,8 +1,8 @@
-"""Agent entrypoint and E1.7 hello-world runtime.
+"""Agent entrypoint for the composed live runtime and E1.7 proof controller.
 
-Run with ``python -m agent``.  The current runtime authenticates, connects the
-Socket.IO message stream, starts ActionTracker reconciliation, and repeatedly
-runs the hardcoded scan/three-tiles/return proof loop on one owned drone.
+Run with ``python -m agent``. The composition root owns transport, telemetry,
+world state, simulation, persistence, and the disabled-by-default planning
+boundary while this entrypoint runs the finite hello-world proof controller.
 """
 
 from __future__ import annotations
@@ -12,10 +12,10 @@ import asyncio
 import logging
 from typing import Any
 
-from agent.bus import EventBus
 from agent.config import Config, load_config
 from agent.logging_setup import setup_logging
 from agent.planning.controllers.hello_world import HelloWorldController
+from agent.runtime import AgentRuntime, compose_runtime
 from agent.transport.action_tracker import ActionTracker
 from agent.transport.rest import GameRest
 from agent.transport.ws import GameSocket
@@ -87,9 +87,7 @@ async def run(cfg: Config, *, duration_s: float | None = None) -> int:
 
     rest.set_reauth(reauth)
 
-    socket: GameSocket | None = None
-    tracker: ActionTracker | None = None
-    background: list[asyncio.Task[None]] = []
+    runtime: AgentRuntime | None = None
 
     try:
         token = await login(rest, cfg)
@@ -110,23 +108,19 @@ async def run(cfg: Config, *, duration_s: float | None = None) -> int:
             log.error("No owned drones were returned by GET /drones")
             return 1
 
-        bus = EventBus()
-        tracker = ActionTracker(rest, bus)
-        socket = GameSocket(
-            cfg.server_url,
-            token_provider=lambda: rest.token,
-            bus=bus,
+        runtime = compose_runtime(
+            cfg,
+            rest,
             gap_fill=lambda count: _gap_fill(rest, count),
+            tracker_factory=ActionTracker,
+            socket_factory=GameSocket,
         )
-        background = [
-            asyncio.create_task(socket.run(), name="game-socket"),
-            asyncio.create_task(tracker.run(), name="action-tracker"),
-        ]
+        await runtime.start()
 
-        await _wait_for_socket(socket)
+        await _wait_for_socket(runtime.socket)
         controller = None
         for drone_id in drone_ids:
-            candidate = HelloWorldController(tracker, drone_id)
+            candidate = HelloWorldController(runtime.tracker, drone_id)
             if await candidate.prepare():
                 controller = candidate
                 break
@@ -141,17 +135,10 @@ async def run(cfg: Config, *, duration_s: float | None = None) -> int:
         log.info("Hello-world autonomy stopped cleanly after %d loop(s)", loops)
         return 0
     finally:
-        if tracker is not None:
-            await tracker.stop()
-        if socket is not None:
-            await socket.stop()
-        for task in background:
-            task.cancel()
-        if background:
-            await asyncio.gather(*background, return_exceptions=True)
-        if tracker is not None:
-            tracker.close()
-        await rest.aclose()
+        if runtime is not None:
+            await runtime.stop()
+        else:
+            await rest.aclose()
 
 
 def main() -> None:

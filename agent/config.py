@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -33,10 +34,23 @@ class Config:
     strategist_tick_s: float = 1.5
     snapshot_interval_s: float = 10.0
     scoreboard_poll_s: float = 5.0
+    telemetry_path: Path = REPO_ROOT / "telemetry" / "live.jsonl"
+    world_database: Path = REPO_ROOT / "state" / "world.sqlite"
+    match_id: str | None = None
+    planning_enabled: bool = False
 
     @property
     def api_base(self) -> str:
         return self.server_url.rstrip("/") + "/api/v1"
+
+    @property
+    def persistence_match_id(self) -> str:
+        """Stable snapshot key, overridable when the server exposes a match id."""
+
+        if self.match_id:
+            return self.match_id
+        identity = f"{self.server_url.rstrip('/')}\0{self.username}".encode()
+        return f"runtime-{sha256(identity).hexdigest()[:16]}"
 
 
 def _parse_creds_file(path: Path) -> dict[str, str]:
@@ -85,7 +99,10 @@ def load_config(creds_path: Path | None = None) -> Config:
 
     Env vars (all optional if creds.txt supplies them):
       DRONE_SERVER_URL, DRONE_USERNAME, DRONE_PASSWORD,
-      DRONE_ADMIN_USERNAME, DRONE_ADMIN_PASSWORD, DRONE_ADMIN_TOKEN
+      DRONE_ADMIN_USERNAME, DRONE_ADMIN_PASSWORD, DRONE_ADMIN_TOKEN,
+      DRONE_TELEMETRY_PATH, DRONE_WORLD_DATABASE, DRONE_MATCH_ID,
+      DRONE_PLANNING_ENABLED, DRONE_QUEUE_DEPTH_TARGET,
+      DRONE_SNAPSHOT_INTERVAL_S
     """
     creds = _parse_creds_file(creds_path or DEFAULT_CREDS)
 
@@ -120,4 +137,48 @@ def load_config(creds_path: Path | None = None) -> Config:
         admin_username=pick("DRONE_ADMIN_USERNAME", "admin_username"),
         admin_password=pick("DRONE_ADMIN_PASSWORD", "admin_password"),
         admin_token=pick("DRONE_ADMIN_TOKEN", "admin_token"),
+        queue_depth_target=_env_int("DRONE_QUEUE_DEPTH_TARGET", 6, minimum=4, maximum=8),
+        snapshot_interval_s=_env_float("DRONE_SNAPSHOT_INTERVAL_S", 10.0, minimum=0.001),
+        telemetry_path=Path(
+            os.environ.get("DRONE_TELEMETRY_PATH", REPO_ROOT / "telemetry" / "live.jsonl")
+        ),
+        world_database=Path(
+            os.environ.get("DRONE_WORLD_DATABASE", REPO_ROOT / "state" / "world.sqlite")
+        ),
+        match_id=os.environ.get("DRONE_MATCH_ID") or None,
+        planning_enabled=_env_bool("DRONE_PLANNING_ENABLED", False),
     )
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    value = raw.strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    raise RuntimeError(f"{name} must be a boolean (true/false)")
+
+
+def _env_int(name: str, default: int, *, minimum: int, maximum: int) -> int:
+    raw = os.environ.get(name)
+    try:
+        value = default if raw is None else int(raw)
+    except ValueError as exc:
+        raise RuntimeError(f"{name} must be an integer") from exc
+    if not minimum <= value <= maximum:
+        raise RuntimeError(f"{name} must be between {minimum} and {maximum}")
+    return value
+
+
+def _env_float(name: str, default: float, *, minimum: float) -> float:
+    raw = os.environ.get(name)
+    try:
+        value = default if raw is None else float(raw)
+    except ValueError as exc:
+        raise RuntimeError(f"{name} must be a number") from exc
+    if value < minimum:
+        raise RuntimeError(f"{name} must be at least {minimum:g}")
+    return value

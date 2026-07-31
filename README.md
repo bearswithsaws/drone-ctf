@@ -55,9 +55,16 @@ Credentials and the server URL come from environment variables
 `DRONE_ADMIN_*`) or from a gitignored `creds.txt` at the repo root.
 **`creds.txt` is never committed.**
 
-The current E1.7 runtime selects the first owned drone and repeatedly scans,
-drives forward three tiles, and reverses back to its starting tile. It waits
-for each action to reach a terminal `ActionTracker` state before submitting the
-next action. A finite `--duration` is checked between complete loops, so the
-process may run slightly longer than requested rather than exit with an action
-still in flight.
+The live composition records raw messages to `telemetry/live.jsonl`, restores
+and snapshots the world model in `state/world.sqlite`, and feeds each parsed
+message to action tracking, world ingest/enemy tracks, entity simulation, and
+metrics. `DRONE_TELEMETRY_PATH`, `DRONE_WORLD_DATABASE`, and `DRONE_MATCH_ID`
+override those persistence settings. The pipeliner and allocator are present
+behind a strategy boundary; `DRONE_PLANNING_ENABLED` starts the empty planning
+service, but no unfinished strategic controllers are installed by default.
+
+The E1.7 proof controller still selects the first owned drone with a clear
+route, then repeatedly scans, drives forward three tiles, and reverses home. A
+finite `--duration` is checked between complete loops, so shutdown never leaves
+a locally submitted action in flight. Shutdown stops live producers, flushes a
+final world snapshot, closes the JSONL session, and joins every runtime task.

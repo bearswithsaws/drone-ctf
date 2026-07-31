@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -64,7 +65,7 @@ class RuntimeRest:
 class RuntimeTracker:
     instance: "RuntimeTracker"
 
-    def __init__(self, _rest: object, _bus: object) -> None:
+    def __init__(self, _rest: object, _bus: object, **_kwargs: object) -> None:
         type(self).instance = self
         self.stopped = False
         self.closed = False
@@ -74,6 +75,9 @@ class RuntimeTracker:
 
     async def stop(self) -> None:
         self.stopped = True
+
+    async def on_message(self, _message: object) -> None:
+        pass
 
     def close(self) -> None:
         self.closed = True
@@ -141,13 +145,19 @@ async def test_wait_for_socket_times_out() -> None:
 
 
 async def test_runtime_wires_transport_controller_and_clean_shutdown(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setattr(agent_main, "GameRest", RuntimeRest)
     monkeypatch.setattr(agent_main, "ActionTracker", RuntimeTracker)
     monkeypatch.setattr(agent_main, "GameSocket", RuntimeSocket)
     monkeypatch.setattr(agent_main, "HelloWorldController", RuntimeController)
-    cfg = Config("https://game.test", "pilot", "secret")
+    cfg = Config(
+        "https://game.test",
+        "pilot",
+        "secret",
+        telemetry_path=tmp_path / "runtime.jsonl",
+        world_database=tmp_path / "world.sqlite",
+    )
 
     assert await agent_main.run(cfg, duration_s=600) == 0
 

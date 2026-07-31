@@ -42,7 +42,8 @@ Our edges:
 
 - `config.py` — creds.txt/env loader and tunables.
 - `logging_setup.py` — shared logging config.
-- `__main__.py` — supervisor: wires and crash-restarts long-lived tasks.
+- `__main__.py` — authentication, drone discovery, and proof-controller entrypoint.
+- `runtime.py` — production composition root and ordered subsystem lifecycle.
 - `bus.py` — async pub/sub event bus (replaces the seed's 130-line elif dispatch).
 - `transport/` — `rest.py` (httpx wrapper, reauth), `ws.py` (socket consumer,
   reconnect, gap-fill via `GET /messages`), `action_tracker.py` (idempotency +
@@ -92,11 +93,14 @@ entity, action subject, payload where available, and FIFO order.
 
 ## Runtime shape
 
-`__main__` supervises: socket pump, tracker reconcile loop, pipeliner feed loop
-(event-driven + 250ms timer), strategist tick (1–2s), snapshot loop (10s),
-scoreboard poll (5s), commander uvicorn server. All crash-restarted with
-backoff; state survives via SQLite. On (re)start: gap-fill `GET /messages`,
-read `GET /queue/*`, full status sweep, restore snapshot, resume.
+`runtime.compose_runtime` constructs the socket pump, tracker reconcile loop,
+raw JSONL recorder, one typed-message boundary, world ingest/tracks/threat map,
+entity simulation, metrics, SQLite snapshots, pipeliner, and allocator. Startup
+restores the world before admitting socket events. Shutdown stops planning and
+transport, joins their tasks, performs a final snapshot, then detaches and
+closes every consumer. The pipeliner/allocator are isolated behind a strategy
+protocol so later strategist/controller tickets can install behavior without
+changing application wiring; the boundary is disabled by default today.
 
 ## Testing
 

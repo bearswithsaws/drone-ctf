@@ -37,11 +37,19 @@ tests/           network-free unit tests (CI)
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-pytest                 # network-free unit tests
-python -m agent        # authenticate against the server and start
+pytest                          # network-free unit tests
+python -m agent                 # run hello-world autonomy until interrupted
+python -m agent --duration 600  # finite 10-minute E1.7 acceptance run
 ```
 
 Credentials and the server URL come from environment variables
 (`DRONE_SERVER_URL`, `DRONE_USERNAME`, `DRONE_PASSWORD`, and optional
 `DRONE_ADMIN_*`) or from a gitignored `creds.txt` at the repo root.
 **`creds.txt` is never committed.**
+
+The current E1.7 runtime selects the first owned drone and repeatedly scans,
+drives forward three tiles, and reverses back to its starting tile. It waits
+for each action to reach a terminal `ActionTracker` state before submitting the
+next action. A finite `--duration` is checked between complete loops, so the
+process may run slightly longer than requested rather than exit with an action
+still in flight.

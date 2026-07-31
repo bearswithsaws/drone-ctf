@@ -29,6 +29,18 @@ from agent.planning.pipeliner import (
     QueueFlushError,
     QueuePollError,
 )
+from agent.planning.strategist import (
+    Doctrine,
+    Posture,
+    ScoreState,
+    Strategist,
+    StrategistConfig,
+    StrategicAssessment,
+    assess,
+    default_fitness,
+    generate_tasks,
+    next_doctrine,
+)
 from agent.planning.tasks import (
     DeployRepeater,
     Escort,
@@ -43,6 +55,16 @@ from agent.planning.tasks import (
 )
 
 __all__ = [
+    "Doctrine",
+    "Posture",
+    "ScoreState",
+    "Strategist",
+    "StrategistConfig",
+    "StrategicAssessment",
+    "assess",
+    "default_fitness",
+    "generate_tasks",
+    "next_doctrine",
     "AllocationResult",
     "Allocator",
     "Assignment",

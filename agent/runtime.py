@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from agent.bus import EventBus
+from agent.commander.directives import DirectiveStore
 from agent.config import Config
 from agent.planning import Pipeliner, TaskAllocator
 from agent.sim import EntitySim
@@ -33,6 +34,7 @@ class PlanningContext:
     entity_sim: EntitySim
     threat_map: ThreatMap
     bus: EventBus
+    directives: DirectiveStore
 
 
 class PlanningStrategy(Protocol):
@@ -118,6 +120,7 @@ class AgentRuntime:
     persistence: WorldPersistence
     pipeliner: Pipeliner
     allocator: TaskAllocator[Any]
+    directives: DirectiveStore
     planning: PlanningBoundary
     _unsubscribers: list[Callable[[], None]] = field(default_factory=list)
     _tasks: list[asyncio.Task[Any]] = field(default_factory=list)
@@ -192,6 +195,7 @@ class AgentRuntime:
                 log.exception("Runtime close operation failed")
 
         await attempt(self.planning.stop)
+        await attempt(self.directives.close)
         await attempt(self.socket.stop)
         await attempt(self.tracker.stop)
 
@@ -256,7 +260,10 @@ def compose_runtime(
     )
     pipeliner = Pipeliner(rest, tracker, target_depth=config.queue_depth_target)
     allocator: TaskAllocator[Any] = TaskAllocator()
-    context = PlanningContext(allocator, pipeliner, world, tracks, entity_sim, threat_map, bus)
+    directives = DirectiveStore(bus)
+    context = PlanningContext(
+        allocator, pipeliner, world, tracks, entity_sim, threat_map, bus, directives
+    )
     planning = PlanningBoundary(
         context,
         enabled=config.planning_enabled or strategy is not None,
@@ -285,6 +292,7 @@ def compose_runtime(
         persistence=persistence,
         pipeliner=pipeliner,
         allocator=allocator,
+        directives=directives,
         planning=planning,
     )
     runtime.attach_consumers()

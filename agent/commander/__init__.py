@@ -39,6 +39,11 @@ from agent.commander.contract import (
     WorldDiff,
     WorldDiffEvent,
 )
+from agent.commander.directives import (
+    DirectiveState,
+    DirectiveStore,
+    TOPIC_DIRECTIVES_CHANGED,
+)
 
 __all__ = [
     "CONTRACT_VERSION",
@@ -51,6 +56,8 @@ __all__ = [
     "ContractV1",
     "Coordinate",
     "Directive",
+    "DirectiveState",
+    "DirectiveStore",
     "DroneState",
     "DroneUpsert",
     "EnemyTrackState",
@@ -68,6 +75,7 @@ __all__ = [
     "StanceDirective",
     "StateSnapshot",
     "TOPIC_COMMANDER_ALERT",
+    "TOPIC_DIRECTIVES_CHANGED",
     "TOPIC_PLAN_CHANGED",
     "TileRemoved",
     "TileState",

@@ -265,6 +265,8 @@ async def test_live_strategy_diverts_low_battery_drone_until_recovered(
 
     await strategy.start(ctx)
     await strategy.wait_ready(timeout_s=1)
+    # A live commander pin must not send a low-battery drone back to work.
+    strategy._directive_overrides["d1"] = "mine:2,0"
     await strategy.tick()
 
     assert ctx.allocator.last_result.task_for("d1").kind == "recharge"
@@ -282,7 +284,8 @@ async def test_live_strategy_diverts_low_battery_drone_until_recovered(
     pipeline.finish(EntityKind.BUILDING, "charger")
     await strategy.tick()
     task = ctx.allocator.last_result.task_for("d1")
-    assert task is None or task.kind != "recharge"
+    assert task is not None
+    assert task.task_id == "mine:2,0"
     assert (EntityKind.BUILDING, "charger") in pipeline.invalidated
 
     await strategy.stop()

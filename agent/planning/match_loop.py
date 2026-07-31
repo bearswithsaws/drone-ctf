@@ -9,6 +9,12 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any, Protocol
 
+from agent.commander.contract import SquadOrderDirective
+from agent.commander.directives import (
+    DirectiveState,
+    DirectiveStore,
+    TOPIC_DIRECTIVES_CHANGED,
+)
 from agent.config import Config
 from agent.planning.controllers import (
     BuildOrder,
@@ -27,6 +33,7 @@ from agent.planning.strategist import (
     ScoreState,
     StrategicAssessment,
     StrategistConfig,
+    apply_commander_stance,
     assess,
     generate_tasks,
     next_doctrine,
@@ -117,6 +124,10 @@ class LiveMatchStrategy:
     strategist_config: StrategistConfig | None = None
     bootstrap_timeout_s: float = 30.0
     doctrine: Doctrine = Doctrine.BUILD_UP
+    commander_stance: str | None = field(default=None, init=False)
+    squad_orders: Mapping[str, SquadOrderDirective] = field(
+        default_factory=dict, init=False
+    )
     bootstrap_report: BootstrapReport | None = field(default=None, init=False)
     last_inputs: LiveStrategicInputs | None = field(default=None, init=False)
     last_tasks: tuple[Task, ...] = field(default=(), init=False)
@@ -129,6 +140,7 @@ class LiveMatchStrategy:
     _installed: dict[str, _InstalledPlan] = field(default_factory=dict, init=False, repr=False)
     _queue_owners: dict[EntityKey, str] = field(default_factory=dict, init=False, repr=False)
     _forced: set[str] = field(default_factory=set, init=False, repr=False)
+    _directive_overrides: dict[str, str] = field(default_factory=dict, init=False, repr=False)
     _score: ScoreState = field(default_factory=ScoreState, init=False, repr=False)
     _user_id: str | None = field(default=None, init=False, repr=False)
     _team: int | None = field(default=None, init=False, repr=False)
@@ -151,10 +163,14 @@ class LiveMatchStrategy:
         self._stop.clear()
         self._wake.clear()
         self._ready.clear()
+        directives = getattr(context, "directives", None)
+        if isinstance(directives, DirectiveStore):
+            self._apply_directive_state(directives.state)
         self._unsubscribers = [
             context.bus.subscribe(TOPIC_WORLD_CHANGED, self._on_world_change),
             context.bus.subscribe(TOPIC_TRACK_CHANGED, self._on_change),
             context.bus.subscribe(TOPIC_ACTION_LIFECYCLE, self._on_lifecycle),
+            context.bus.subscribe(TOPIC_DIRECTIVES_CHANGED, self._on_directives_changed),
         ]
         self._task = asyncio.create_task(self._run(), name="live-match-strategy")
         await asyncio.sleep(0)
@@ -202,7 +218,9 @@ class LiveMatchStrategy:
         config = self.strategist_config
         assert config is not None
         assessment = assess(context, score, config)
-        doctrine = next_doctrine(self.doctrine, assessment)
+        doctrine = apply_commander_stance(
+            next_doctrine(self.doctrine, assessment), self.commander_stance
+        )
         doctrine_changed = doctrine is not self.doctrine
         if doctrine_changed:
             log.info("doctrine %s -> %s (%s)", self.doctrine.value, doctrine.value, assessment)
@@ -219,11 +237,16 @@ class LiveMatchStrategy:
             for task in tasks
             if isinstance(task, (MineLoop, ScoutSector, Strike))
         ]
+        # Commander directives apply to normal mission allocation, but battery
+        # safety is non-negotiable and must pre-empt an override while a drone
+        # is below its recovery threshold.
+        allocation_pins = dict(self._directive_overrides)
+        allocation_pins.update(safety_pins)
         result = context.allocator.allocate(
             drones,
             drone_tasks,
             self._fitness,
-            pinned=safety_pins,
+            pinned=allocation_pins,
         )
         assigned = set(result)
 
@@ -810,6 +833,18 @@ class LiveMatchStrategy:
         if owner is not None:
             self._forced.add(owner)
         self._wake.set()
+
+    async def _on_directives_changed(self, _topic: str, state: DirectiveState) -> None:
+        previous_stance = self.commander_stance
+        self._apply_directive_state(state)
+        if self.commander_stance != previous_stance:
+            self._forced.update(self._installed)
+        self._wake.set()
+
+    def _apply_directive_state(self, state: DirectiveState) -> None:
+        self.commander_stance = None if state.stance is None else state.stance.stance
+        self.squad_orders = state.squad_orders
+        self._directive_overrides = dict(state.pinned_tasks)
 
     def _require_context(self) -> Any:
         if self._context is None:

@@ -345,6 +345,9 @@ async def test_low_battery_safety_pin_persists_until_recovery() -> None:
     )
     await strat.start(ctx)
     try:
+        # Safety remains authoritative even when a commander directive pins
+        # this drone to a normal mission.
+        strat._directive_overrides["d1"] = "mine:3,0"
         await strat.tick()
         assert ctx.allocator.last_result.task_for("d1").kind == "recharge"
 
@@ -355,7 +358,8 @@ async def test_low_battery_safety_pin_persists_until_recovery() -> None:
         ctx.entity_sim.seed_drone("d1", current_battery=900, max_battery=1000)
         await strat.tick()
         task = ctx.allocator.last_result.task_for("d1")
-        assert task is None or task.kind != "recharge"
-        assert ("drone", "d1") in ctx.pipeliner.invalidated
+        assert task is not None
+        assert task.task_id == "mine:3,0"
+        assert ("drone", "d1") in ctx.pipeliner.replaced
     finally:
         await strat.stop()

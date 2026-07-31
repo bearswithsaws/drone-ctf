@@ -31,6 +31,12 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 
+from agent.commander.contract import SquadOrderDirective
+from agent.commander.directives import (
+    DirectiveState,
+    DirectiveStore,
+    TOPIC_DIRECTIVES_CHANGED,
+)
 from agent.planning.pipeliner import ControllerOutput
 from agent.planning.tasks import (
     MineLoop,
@@ -204,6 +210,25 @@ def next_doctrine(current: Doctrine, a: StrategicAssessment) -> Doctrine:
     return Doctrine.EXPAND if a.economy_ready else Doctrine.BUILD_UP
 
 
+def apply_commander_stance(
+    autonomous: Doctrine, stance: str | None
+) -> Doctrine:
+    """Overlay an explicit commander stance on autonomous doctrine selection.
+
+    ``balanced`` hands control back to the doctrine FSM.  The other stances map
+    to existing doctrines so the directive changes real task generation without
+    inventing a second strategic state machine.
+    """
+
+    if stance is None or stance == "balanced":
+        return autonomous
+    return {
+        "aggressive": Doctrine.ALL_IN,
+        "defensive": Doctrine.DEFEND,
+        "retreat": Doctrine.BUILD_UP,
+    }.get(stance, autonomous)
+
+
 # --- pure task generation ---
 
 def _command_center_id(world) -> str | None:
@@ -375,17 +400,33 @@ class Strategist:
     config: StrategistConfig = field(default_factory=StrategistConfig)
     fitness: Callable[[object, Task], float | None] = default_fitness
     doctrine: Doctrine = Doctrine.BUILD_UP
+    commander_stance: str | None = field(default=None, init=False)
+    squad_orders: Mapping[str, SquadOrderDirective] = field(
+        default_factory=dict, init=False
+    )
     _context: object | None = field(default=None, init=False, repr=False)
     _task: asyncio.Task | None = field(default=None, init=False, repr=False)
     _stop: asyncio.Event = field(default_factory=asyncio.Event, init=False, repr=False)
     # (entity kind, entity id) -> task_id currently installed in the pipeliner.
     _installed: dict[tuple[str, str], str] = field(default_factory=dict, init=False, repr=False)
     _charging: set[str] = field(default_factory=set, init=False, repr=False)
+    _directive_overrides: dict[str, str] = field(default_factory=dict, init=False, repr=False)
+    _directive_unsubscriber: Callable[[], None] | None = field(
+        default=None, init=False, repr=False
+    )
 
     # PlanningStrategy protocol
     async def start(self, context) -> None:
         self._context = context
         self._stop.clear()
+        directives = getattr(context, "directives", None)
+        if isinstance(directives, DirectiveStore):
+            self._apply_directive_state(directives.state)
+        bus = getattr(context, "bus", None)
+        if bus is not None:
+            self._directive_unsubscriber = bus.subscribe(
+                TOPIC_DIRECTIVES_CHANGED, self._on_directives_changed
+            )
         self._task = asyncio.create_task(self._run(), name="strategist")
         await asyncio.sleep(0)
 
@@ -396,6 +437,9 @@ class Strategist:
                 await self._task
             finally:
                 self._task = None
+        if self._directive_unsubscriber is not None:
+            self._directive_unsubscriber()
+            self._directive_unsubscriber = None
 
     async def _run(self) -> None:
         while not self._stop.is_set():
@@ -425,7 +469,9 @@ class Strategist:
 
         score = await self._read_score()
         assessment = assess(context, score, self.config)
-        doctrine = next_doctrine(self.doctrine, assessment)
+        doctrine = apply_commander_stance(
+            next_doctrine(self.doctrine, assessment), self.commander_stance
+        )
         if doctrine != self.doctrine:
             log.info("doctrine %s -> %s (%s)", self.doctrine.value, doctrine.value, assessment)
         self.doctrine = doctrine
@@ -437,13 +483,17 @@ class Strategist:
         drones = list(context.world.drones())
         recharge_tasks, safety_pins = self._recharge_work(context, drones)
         drone_tasks = recharge_tasks + drone_tasks
+        # Safety pins deliberately win over human directives until the drone
+        # reaches the configured recovery threshold.
+        allocation_pins = dict(self._directive_overrides)
+        allocation_pins.update(safety_pins)
         desired: dict[tuple[str, str], str] = {}
         if drones and drone_tasks:
             result = context.allocator.allocate(
                 drones,
                 drone_tasks,
                 self.fitness,
-                pinned=safety_pins,
+                pinned=allocation_pins,
             )
             for entity_id, task in result.items():
                 desired[("drone", entity_id)] = task.task_id
@@ -491,6 +541,14 @@ class Strategist:
             tasks.append(task)
             pins[drone.drone_id] = task
         return tasks, pins
+
+    async def _on_directives_changed(self, _topic: str, state: DirectiveState) -> None:
+        self._apply_directive_state(state)
+
+    def _apply_directive_state(self, state: DirectiveState) -> None:
+        self.commander_stance = None if state.stance is None else state.stance.stance
+        self.squad_orders = state.squad_orders
+        self._directive_overrides = dict(state.pinned_tasks)
 
     async def _register(self, kind: str, entity_id: str, entity, task: Task, context) -> None:
         """Install an entity's controller output in the pipeliner, but only on

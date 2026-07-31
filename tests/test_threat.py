@@ -148,3 +148,15 @@ async def test_building_add_move_and_remove_are_visible_without_rebuilding_map()
 
     await world.remove_enemy_building("turret")
     assert threat((30, 0)) == 0.0
+
+
+async def test_snapshot_is_immutable_when_live_threats_change() -> None:
+    world, _, threat = await _threat_map()
+    snapshot = threat.snapshot()
+
+    await world.upsert_enemy_building(
+        "turret", building_type="laser_turret", origin=(0, 0), cycle=1
+    )
+
+    assert snapshot((0, 0)) == 0.0
+    assert threat((0, 0)) == 1.0

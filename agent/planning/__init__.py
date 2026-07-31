@@ -7,6 +7,15 @@ from agent.planning.allocator import (
     GreedyAllocator,
     TaskAllocator,
 )
+from agent.planning.pathfind import (
+    MovementProfile,
+    PathResult,
+    Pathfinder,
+    PathfindingConfig,
+    SearchLimitExceeded,
+    compile_path,
+    find_path,
+)
 
 from agent.planning.pipeliner import (
     DEFAULT_MAX_DEPTH,
@@ -46,6 +55,10 @@ __all__ = [
     "Escort",
     "LayMines",
     "MineLoop",
+    "MovementProfile",
+    "PathResult",
+    "Pathfinder",
+    "PathfindingConfig",
     "PipelineError",
     "PipelineStatus",
     "Pipeliner",
@@ -55,8 +68,11 @@ __all__ = [
     "QueuePollError",
     "Research",
     "ScoutSector",
+    "SearchLimitExceeded",
     "Strike",
     "Task",
     "TaskAllocator",
     "TaskType",
+    "compile_path",
+    "find_path",
 ]

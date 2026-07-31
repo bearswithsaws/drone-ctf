@@ -29,6 +29,7 @@ from agent.world.tracks import (
 from agent.world.threat import (
     DEFAULT_WEAPON_ENVELOPES,
     ThreatMap,
+    ThreatSnapshot,
     ThreatSource,
     WeaponEnvelope,
 )
@@ -58,6 +59,7 @@ __all__ = [
     "SightingSource",
     "TOPIC_TRACK_CHANGED",
     "ThreatMap",
+    "ThreatSnapshot",
     "ThreatSource",
     "WeaponEnvelope",
     "DEFAULT_WEAPON_ENVELOPES",

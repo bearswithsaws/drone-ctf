@@ -48,6 +48,22 @@ class ThreatSource:
         return self.envelope.cost * self.confidence
 
 
+@dataclass(frozen=True, slots=True)
+class ThreatSnapshot:
+    """Immutable weapon-source snapshot safe to query from a worker thread."""
+
+    sources: tuple[ThreatSource, ...]
+
+    def cost_at(self, coord: Coord) -> float:
+        return sum(source.cost_at(coord) for source in self.sources)
+
+    def costs_at(self, coords: Iterable[Coord]) -> dict[Coord, float]:
+        return {coord: self.cost_at(coord) for coord in coords}
+
+    def __call__(self, coord: Coord) -> float:
+        return self.cost_at(coord)
+
+
 # Ticket #17's specified envelopes.  Turret ordering is laser / missile /
 # auto-cannon; howitzers are drone-mounted and have a dead zone.
 DEFAULT_WEAPON_ENVELOPES: Mapping[str, WeaponEnvelope] = MappingProxyType(
@@ -125,14 +141,18 @@ class ThreatMap:
 
     def cost_at(self, coord: Coord, *, now_cycle: int | None = None) -> float:
         """Return the additive hostile danger cost for one tile."""
-        return sum(source.cost_at(coord) for source in self.sources(now_cycle=now_cycle))
+        return self.snapshot(now_cycle=now_cycle).cost_at(coord)
 
     def costs_at(
         self, coords: Iterable[Coord], *, now_cycle: int | None = None
     ) -> dict[Coord, float]:
         """Return costs for several tiles using one source snapshot."""
-        sources = self.sources(now_cycle=now_cycle)
-        return {coord: sum(source.cost_at(coord) for source in sources) for coord in coords}
+        return self.snapshot(now_cycle=now_cycle).costs_at(coords)
+
+    def snapshot(self, *, now_cycle: int | None = None) -> ThreatSnapshot:
+        """Freeze current sources for a consistent path search or worker task."""
+
+        return ThreatSnapshot(self.sources(now_cycle=now_cycle))
 
     def __call__(self, coord: Coord) -> float:
         """Allow direct use as a pathfinder tile-cost callback."""

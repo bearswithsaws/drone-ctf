@@ -116,7 +116,7 @@ class WorldPersistence:
         while not self._stop_event.is_set():
             try:
                 await asyncio.wait_for(self._stop_event.wait(), timeout=self.interval_s)
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 try:
                     await self.snapshot()
                 except asyncio.CancelledError:

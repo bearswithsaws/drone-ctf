@@ -1,5 +1,6 @@
 """World model package: beliefs, entity records, and change events."""
 
+from agent.world.ingest import Ingestor, Rule
 from agent.world.model import (
     TOPIC_WORLD_CHANGED,
     BuildingRecord,
@@ -16,6 +17,8 @@ from agent.world.tiles import (
 )
 
 __all__ = [
+    "Ingestor",
+    "Rule",
     "WorldModel",
     "WorldChange",
     "TileObservation",

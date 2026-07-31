@@ -15,47 +15,54 @@ import argparse
 import asyncio
 import logging
 
-import httpx
-
 from agent.config import Config, load_config
 from agent.logging_setup import setup_logging
+from agent.transport.rest import GameRest
 
 log = logging.getLogger("agent.main")
 
 
-async def authenticate(cfg: Config) -> str:
-    """Log in and return an auth token. Raises on failure.
-
-    Superseded by the full REST transport in E1.2 (transport/rest.py); kept here
-    so the skeleton has an end-to-end auth path from day one.
-    """
-    async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=5.0)) as client:
-        resp = await client.post(
-            f"{cfg.api_base}/auth/login",
-            json={"username": cfg.username, "password": cfg.password},
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        token = data.get("token")
-        if not token:
-            raise RuntimeError(f"Login succeeded but no token in response: {data!r}")
-        log.info("Authenticated as %s (user_id=%s)", cfg.username, data.get("user_id"))
-        return token
+async def login(rest: GameRest, cfg: Config) -> str | None:
+    """POST /auth/login and return a token, or None on failure."""
+    res = await rest.post(
+        "/auth/login", json={"username": cfg.username, "password": cfg.password}
+    )
+    if not res.ok:
+        log.error("Login failed (%s): %s", res.status, res.error_message or res.data)
+        return None
+    token = res.data.get("token")
+    if not token:
+        log.error("Login succeeded but no token in response: %r", res.data)
+        return None
+    log.info("Authenticated as %s (user_id=%s)", cfg.username, res.data.get("user_id"))
+    return token
 
 
 async def run(cfg: Config) -> int:
     log.info("Starting agent against %s", cfg.server_url)
-    try:
-        await authenticate(cfg)
-    except httpx.HTTPError as exc:
-        log.error("Authentication failed: %s", exc)
-        return 1
 
-    # TODO(E1.x+): construct EventBus, GameRest, GameSocket, ActionTracker,
-    # WorldModel, Strategist, Pipeliner, commander API; supervise them with
-    # crash-restart + backoff here. For now the skeleton exits after auth.
-    log.info("Walking-skeleton startup complete; exiting cleanly.")
-    return 0
+    # A single pooled REST client used for everything. The reauth callback lets
+    # GameRest transparently re-login when the server expires our token.
+    rest = GameRest(cfg.api_base)
+
+    async def reauth() -> str | None:
+        return await login(rest, cfg)
+
+    rest.set_reauth(reauth)
+
+    try:
+        token = await login(rest, cfg)
+        if token is None:
+            return 1
+        rest.set_token(token)
+
+        # TODO(E1.x+): construct EventBus, GameSocket, ActionTracker, WorldModel,
+        # Strategist, Pipeliner, commander API; supervise them with crash-restart
+        # + backoff here. For now the skeleton exits cleanly after auth.
+        log.info("Walking-skeleton startup complete; exiting cleanly.")
+        return 0
+    finally:
+        await rest.aclose()
 
 
 def main() -> None:

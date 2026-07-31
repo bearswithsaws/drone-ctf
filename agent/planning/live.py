@@ -87,11 +87,11 @@ class ScoreboardSource:
         self._min_interval = min_interval_s
         self._own_team: int | None = None
         self._cached = ScoreState()
-        self._fetched_at = 0.0
+        self._fetched_at: float | None = None
 
     async def __call__(self) -> ScoreState:
         now = time.monotonic()
-        if now - self._fetched_at < self._min_interval:
+        if self._fetched_at is not None and now - self._fetched_at < self._min_interval:
             return self._cached
         self._fetched_at = now  # even on failure: don't hammer a broken endpoint
         result = await self._rest.get("/auth/scoreboard")

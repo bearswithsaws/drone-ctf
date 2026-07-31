@@ -53,7 +53,8 @@ async def test_scoreboard_source_resolves_team_and_best_enemy() -> None:
     assert state == ScoreState(own=40, best_enemy=90)  # admin team 0 excluded
 
 
-async def test_scoreboard_source_caches_within_interval() -> None:
+async def test_scoreboard_source_caches_within_interval(monkeypatch) -> None:
+    monkeypatch.setattr("agent.planning.live.time.monotonic", lambda: 1.0)
     rest = FakeRest([FakeResult(SCOREBOARD)])
     src = ScoreboardSource(rest, "me", min_interval_s=60.0)
     await src()

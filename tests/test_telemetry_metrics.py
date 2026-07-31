@@ -92,6 +92,8 @@ class LossyRest:
 
     async def post(self, path: str, json: dict[str, Any] | None = None) -> FakeResult:
         self.posts += 1
+        if self.posts == 1:
+            return FakeResult({"error": {"message": "connection lost"}}, ok=False)
         return FakeResult({"action_id": f"server-{self.posts}"})
 
     async def get(self, path: str, params: dict[str, Any] | None = None) -> FakeResult:
@@ -125,7 +127,7 @@ async def test_action_tracker_simulated_loss_feeds_metrics() -> None:
         precondition=lambda: True,
     )
     clock.now = 1.0
-    await tracker.reconcile()  # absent from queue: command lost, then resubmitted
+    await tracker.reconcile()  # unacknowledged and absent: command lost, then resubmitted
 
     bucket = metrics.loss_rate_by_distance["10-20"]
     assert bucket.submissions == 2

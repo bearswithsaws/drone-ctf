@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from copy import deepcopy
 from typing import Any, Mapping
 
 from pydantic import ValidationError
 
+from agent.bus import EventBus
 from agent.transport.schema import (
     ActionCompletedMessage,
     ActionFailedMessage,
@@ -21,8 +23,11 @@ from agent.transport.schema import (
     WarningMessage,
     WireMessage,
 )
+from agent.transport.ws import TOPIC_MESSAGE
 
 logger = logging.getLogger(__name__)
+
+TOPIC_PARSED_MESSAGE = "message.parsed"
 
 _MESSAGE_MODELS: dict[str, type[WireMessage]] = {
     "action_completed": ActionCompletedMessage,
@@ -62,3 +67,24 @@ def parse_wire_message(payload: Mapping[str, Any]) -> ParsedWireMessage:
             exc_info=True,
         )
         return _preserve_unknown(raw)
+
+
+class WireParser:
+    """Validate raw socket messages once and publish typed messages downstream."""
+
+    def __init__(self, bus: EventBus) -> None:
+        self._bus = bus
+        self._unsubscribe: Callable[[], None] | None = bus.subscribe(
+            TOPIC_MESSAGE, self._on_message
+        )
+
+    async def _on_message(self, _topic: str, payload: Any) -> None:
+        if not isinstance(payload, Mapping):
+            logger.warning("Ignoring non-mapping wire payload: %r", payload)
+            return
+        await self._bus.publish(TOPIC_PARSED_MESSAGE, parse_wire_message(payload))
+
+    def close(self) -> None:
+        if self._unsubscribe is not None:
+            self._unsubscribe()
+            self._unsubscribe = None

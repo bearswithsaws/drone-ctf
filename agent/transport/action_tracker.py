@@ -203,6 +203,7 @@ class ActionTracker:
         cycle_seconds: float = 0.25,
         reconcile_interval_s: float = 0.25,
         orphan_limit: int = 1000,
+        message_topic: str | None = TOPIC_MESSAGE,
     ) -> None:
         self._rest = rest
         self._bus = bus
@@ -217,7 +218,11 @@ class ActionTracker:
         self._orphans: "OrderedDict[str, list[dict[str, Any]]]" = OrderedDict()
         self._lock = asyncio.Lock()
         self._stop = asyncio.Event()
-        self._unsubscribe = bus.subscribe(TOPIC_MESSAGE, self._on_bus_message) if bus else None
+        self._unsubscribe = (
+            bus.subscribe(message_topic, self._on_bus_message)
+            if bus is not None and message_topic is not None
+            else None
+        )
 
     @property
     def intents(self) -> Mapping[str, Intent]:

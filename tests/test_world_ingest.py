@@ -11,6 +11,8 @@ import json
 from pathlib import Path
 
 from agent.world import Ingestor, WorldModel
+from agent.world.model import TileObservation
+from agent.world.tiles import Terrain
 
 GOLDEN = json.loads(
     (Path(__file__).parent / "fixtures" / "message_samples.json").read_text(encoding="utf-8")
@@ -48,6 +50,7 @@ def _turn(drone_id: str, new_direction: int, cycle: int = 1) -> dict:
 
 # --- status_report ---
 
+
 async def test_status_report_populates_buildings_and_drones() -> None:
     wm = WorldModel()
     ing = Ingestor(wm)
@@ -81,6 +84,7 @@ async def test_status_report_removes_stale_entities() -> None:
 
 
 # --- scan + buffering fix ---
+
 
 async def test_scan_buffered_until_position_known_then_replayed() -> None:
     wm = WorldModel()
@@ -116,6 +120,7 @@ async def test_scan_applied_directly_when_position_known() -> None:
 
 
 # --- movement ---
+
 
 async def test_drive_moves_drone_in_facing_direction() -> None:
     wm = WorldModel()
@@ -156,15 +161,67 @@ async def test_turn_updates_direction() -> None:
     assert wm.get_drone("d1").direction == 4
 
 
+async def test_mine_completion_decrements_and_retires_resource_node() -> None:
+    wm = WorldModel()
+    ing = Ingestor(wm)
+    await wm.upsert_drone("d1", q=0, r=0, direction=0, cycle=0)
+    resource = (1, 0)
+    await wm.observe_tile(
+        TileObservation(
+            q=resource[0],
+            r=resource[1],
+            terrain_type=Terrain.NORMAL,
+            has_resource=True,
+            resource_type="titanium_ore",
+            resource_amount=25,
+        ),
+        cycle=1,
+    )
+
+    await ing.ingest(
+        {
+            "message_type": "action_completed",
+            "subject": "Mine completed",
+            "timestamp": 2,
+            "drone_id": "d1",
+            "details": {"success": True, "total_ore_mined": 10},
+        }
+    )
+    assert wm.get_tile(resource).resource_amount == 15
+
+    await ing.ingest(
+        {
+            "message_type": "action_completed",
+            "subject": "Mine completed",
+            "timestamp": 3,
+            "drone_id": "d1",
+            "details": {
+                "success": True,
+                "total_ore_mined": 15,
+                "resource_depleted": True,
+            },
+        }
+    )
+    assert wm.get_tile(resource).has_resource is False
+    assert resource not in {tile.coord for tile in wm.resource_nodes()}
+
+
 # --- destruction + fallthrough ---
+
 
 async def test_drone_destroyed_removes_it() -> None:
     wm = WorldModel()
     ing = Ingestor(wm)
     await wm.upsert_drone("d1", q=0, r=0, cycle=0)
     await ing.ingest(
-        {"message_id": "x", "message_type": "drone_destroyed", "subject": "Drone destroyed",
-         "timestamp": 9, "drone_id": "d1", "details": {}}
+        {
+            "message_id": "x",
+            "message_type": "drone_destroyed",
+            "subject": "Drone destroyed",
+            "timestamp": 9,
+            "drone_id": "d1",
+            "details": {},
+        }
     )
     assert wm.get_drone("d1") is None
 
@@ -173,8 +230,13 @@ async def test_unmapped_message_is_noop() -> None:
     wm = WorldModel()
     ing = Ingestor(wm)
     await ing.ingest(
-        {"message_id": "x", "message_type": "score_update", "subject": "Score changed",
-         "timestamp": 1, "details": {"new_score": 5}}
+        {
+            "message_id": "x",
+            "message_type": "score_update",
+            "subject": "Score changed",
+            "timestamp": 1,
+            "details": {"new_score": 5},
+        }
     )
     assert wm.tile_count == 0 and not list(wm.drones())
 

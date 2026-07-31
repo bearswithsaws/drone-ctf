@@ -184,9 +184,7 @@ class WorldModel:
             tiles=tuple(replace(tile) for _, tile in sorted(self._tiles.items())),
             drones=tuple(replace(rec) for _, rec in sorted(self._drones.items())),
             buildings=tuple(replace(rec) for _, rec in sorted(self._buildings.items())),
-            enemy_buildings=tuple(
-                replace(rec) for _, rec in sorted(self._enemy_buildings.items())
-            ),
+            enemy_buildings=tuple(replace(rec) for _, rec in sorted(self._enemy_buildings.items())),
         )
 
     async def restore_state(self, state: WorldState) -> None:
@@ -203,9 +201,7 @@ class WorldModel:
         tiles = {tile.coord: replace(tile) for tile in state.tiles}
         drones = {rec.drone_id: replace(rec) for rec in state.drones}
         buildings = {rec.building_id: replace(rec) for rec in state.buildings}
-        enemy_buildings = {
-            rec.building_id: replace(rec) for rec in state.enemy_buildings
-        }
+        enemy_buildings = {rec.building_id: replace(rec) for rec in state.enemy_buildings}
 
         self._cycle = state.cycle
         self._half_life = state.confidence_half_life
@@ -213,9 +209,7 @@ class WorldModel:
         self._drones = drones
         self._buildings = buildings
         self._enemy_buildings = enemy_buildings
-        self._resource_nodes = {
-            coord for coord, tile in tiles.items() if tile.has_resource
-        }
+        self._resource_nodes = {coord for coord, tile in tiles.items() if tile.has_resource}
         await self._emit(WorldChange("restored", (), self._cycle))
 
     async def observe_tile(
@@ -283,6 +277,40 @@ class WorldModel:
             tile = self._tiles.get(coord)
             if tile is not None:
                 yield tile
+
+    async def apply_mining(
+        self,
+        coord: Coord,
+        *,
+        amount: int,
+        depleted: bool = False,
+        cycle: int | None = None,
+    ) -> None:
+        """Apply a mine completion to a known resource belief.
+
+        Mine completion messages omit the full tile snapshot, so this narrow
+        mutation preserves terrain/building observations while decrementing
+        the ore estimate.  A later identify remains authoritative.
+        """
+
+        tile = self._tiles.get(coord)
+        if tile is None:
+            return
+        mined = max(0, int(amount))
+        if depleted or (
+            tile.resource_amount is not None and max(0, tile.resource_amount - mined) == 0
+        ):
+            tile.has_resource = False
+            tile.resource_type = None
+            tile.resource_amount = None
+            self._resource_nodes.discard(coord)
+        elif tile.resource_amount is not None:
+            tile.resource_amount = max(0, tile.resource_amount - mined)
+        if cycle is not None:
+            tile.last_seen = cycle
+            if cycle > self._cycle:
+                self._cycle = cycle
+        await self._emit(WorldChange("resource", (coord,), self._cycle))
 
     # --- own drones ---
 

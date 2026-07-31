@@ -45,14 +45,19 @@ def building_completed(
     building_id: str,
     subject: str,
     details: dict[str, object] | None = None,
+    *,
+    drone_id: str | None = None,
 ) -> dict[str, object]:
-    return {
+    message: dict[str, object] = {
         "message_type": "building_action_completed",
         "action_id": action_id,
         "building_id": building_id,
         "subject": subject,
         "details": {"success": True, **(details or {})},
     }
+    if drone_id is not None:
+        message["drone_id"] = drone_id
+    return message
 
 
 def test_replay_uses_queued_level_weight_and_research_for_battery() -> None:
@@ -117,6 +122,12 @@ def test_status_is_authoritative_and_extracts_all_stripped_fields() -> None:
                         "weight": 20,
                         "loaded_ammo_type": "armour_piercing",
                     },
+                    {
+                        "equipment_type": "hopper",
+                        "weight": 15,
+                        "capacity": 25,
+                        "current_load": {"titanium_ore": 12},
+                    },
                 ],
             }
         },
@@ -129,7 +140,7 @@ def test_status_is_authoritative_and_extracts_all_stripped_fields() -> None:
     assert delta.battery_spent == 0  # the reported 3999 already includes status's cost
     assert state is not None
     assert state.current_battery == 3999
-    assert state.total_weight == 130
+    assert state.total_weight == 145
     assert state.loaded_ammo_type == "armour_piercing_ammunition"
     assert state.consumables == {
         "armour_piercing_ammunition": 7,
@@ -137,6 +148,60 @@ def test_status_is_authoritative_and_extracts_all_stripped_fields() -> None:
         "decoy_beacon": 3,
         "howitzer_charges": 11,
     }
+    assert state.cargo == {"titanium_ore": 12}
+    assert state.hopper_load == 12
+    assert state.hopper_capacity == 25
+
+
+def test_mine_unload_and_station_charge_update_drone_projection() -> None:
+    sim = EntitySim()
+    sim.seed_drone(
+        "drone-1",
+        current_battery=100,
+        max_battery=500,
+        cargo={"titanium_ore": 5},
+        hopper_capacity=25,
+    )
+    sim.seed_building("refiner", building_type="refiner")
+    sim.seed_building("charger", building_type="drone_charging_station")
+
+    sim.apply_message(
+        completed(
+            "mine-1",
+            "Mine completed",
+            {"level": 1, "total_ore_mined": 20},
+        )
+    )
+    mined = sim.get_drone("drone-1")
+    assert mined is not None
+    assert mined.current_battery == 98
+    assert mined.hopper_load == 25
+
+    sim.apply_message(
+        building_completed(
+            "unload-1",
+            "refiner",
+            "Unload completed",
+            {"ore_unloaded": {"titanium_ore": 25}},
+            drone_id="drone-1",
+        )
+    )
+    unloaded = sim.get_drone("drone-1")
+    refiner = sim.get_building("refiner")
+    assert unloaded is not None and unloaded.cargo == {}
+    assert refiner is not None
+    assert refiner.stored_resources == {"titanium_ore": 25}
+
+    sim.apply_message(
+        building_completed(
+            "charge-1",
+            "charger",
+            "Charge completed",
+            drone_id="drone-1",
+        )
+    )
+    charged = sim.get_drone("drone-1")
+    assert charged is not None and charged.current_battery == 348
 
 
 def test_consumables_apply_only_on_completion_and_never_go_negative() -> None:

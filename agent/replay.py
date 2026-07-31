@@ -13,7 +13,7 @@ from agent.telemetry.recorder import RECORDING_VERSION
 from agent.transport.ws import TOPIC_MESSAGE
 from agent.world import Ingestor, TrackStore, WorldModel
 
-SNAPSHOT_VERSION = 1
+SNAPSHOT_VERSION = 2
 
 
 class ReplayFormatError(ValueError):
@@ -111,9 +111,7 @@ def snapshot_state(world: WorldModel, tracks: TrackStore, sim: EntitySim) -> dic
             "tiles": tiles,
             "drones": _sorted_dataclasses(world.drones(), "drone_id"),
             "buildings": _sorted_dataclasses(world.buildings(), "building_id"),
-            "enemy_buildings": _sorted_dataclasses(
-                world.enemy_buildings(), "building_id"
-            ),
+            "enemy_buildings": _sorted_dataclasses(world.enemy_buildings(), "building_id"),
             "enemy_tracks": enemy_tracks,
         },
         "entity_sim": {

@@ -84,6 +84,7 @@ class Ingestor:
             Rule("action_completed", "identify", Ingestor._on_identify),
             Rule("action_completed", "drive", Ingestor._on_drive),
             Rule("action_completed", "turn", Ingestor._on_turn),
+            Rule("action_completed", "mine completed", Ingestor._on_mine),
             Rule("action_completed", "status completed", Ingestor._on_drone_status),
             Rule("drone_destroyed", "", Ingestor._on_drone_destroyed),
             Rule("building_destroyed", "", Ingestor._on_building_destroyed),
@@ -99,7 +100,9 @@ class Ingestor:
         drones = details.get("drones", []) or []
 
         report_bids = {b.get("building_id") for b in buildings if b.get("building_id")}
-        for bid in [b.building_id for b in self._world.buildings() if b.building_id not in report_bids]:
+        for bid in [
+            b.building_id for b in self._world.buildings() if b.building_id not in report_bids
+        ]:
             await self._world.remove_building(bid)
 
         report_dids = {d.get("drone_id") for d in drones if d.get("drone_id")}
@@ -150,7 +153,9 @@ class Ingestor:
             return
         await self._apply_scan(scan_data, origin, cycle)
 
-    async def _apply_scan(self, scan_data: dict[str, Any], origin: tuple[int, int], cycle: int) -> None:
+    async def _apply_scan(
+        self, scan_data: dict[str, Any], origin: tuple[int, int], cycle: int
+    ) -> None:
         obs: list[TileObservation] = []
         enemy_coords: list[tuple[int, int]] = []
         empty_building_coords: list[tuple[int, int]] = []
@@ -278,6 +283,39 @@ class Ingestor:
             return
         await self._world.upsert_drone(drone_id, direction=int(new_direction), cycle=cycle)
 
+    async def _on_mine(self, msg: dict[str, Any], cycle: int) -> None:
+        drone_id = msg.get("drone_id")
+        details = msg.get("details") or {}
+        if not drone_id or not details.get("success"):
+            return
+        drone = self._world.get_drone(drone_id)
+        if drone is None or drone.coord is None:
+            return
+
+        explicit = _coord((details.get("resource_q"), details.get("resource_r")))
+        candidates = [explicit] if explicit is not None else []
+        candidates.extend(hexmath.get_neighbor(*drone.coord, direction) for direction in range(6))
+        resource_coord = next(
+            (
+                coord
+                for coord in candidates
+                if coord is not None
+                and (tile := self._world.get_tile(coord)) is not None
+                and tile.has_resource
+            ),
+            None,
+        )
+        if resource_coord is None:
+            return
+        await self._world.apply_mining(
+            resource_coord,
+            amount=int(details.get("total_ore_mined", 0) or 0),
+            depleted=bool(
+                details.get("resource_depleted", False) or details.get("resource_removed", False)
+            ),
+            cycle=cycle,
+        )
+
     async def _on_drone_status(self, msg: dict[str, Any], cycle: int) -> None:
         """Drone status carries no position, but does carry heading/elevation."""
         drone_id = msg.get("drone_id")
@@ -376,11 +414,7 @@ def _equipment_types(equipment: list[Any]) -> frozenset[str]:
         if isinstance(item, str):
             name = item
         elif isinstance(item, dict):
-            name = (
-                item.get("equipment_type")
-                or item.get("type")
-                or item.get("name")
-            )
+            name = item.get("equipment_type") or item.get("type") or item.get("name")
         else:
             continue
         normalised = _normalise_equipment_name(name)

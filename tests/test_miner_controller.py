@@ -136,6 +136,12 @@ async def test_miner_plans_each_queue_safe_leg_of_the_full_loop() -> None:
     assert unload.phase is MinerPhase.UNLOADING
     assert unload.entity_key == (EntityKind.BUILDING, "refiner")
     assert unload.actions[0].action.action == "common/unload"
+    assert dict(unload.actions[0].action.payload) == {
+        "q": 1,
+        "r": -1,
+        "efficiency": 1.0,
+        "resource_type": "titanium_ore",
+    }
     assert unload.actions_for(EntityKind.BUILDING, "refiner") == (unload.actions[0].action,)
 
     sim.apply_message(
@@ -165,6 +171,11 @@ async def test_miner_plans_each_queue_safe_leg_of_the_full_loop() -> None:
     assert charging.entity_key == (EntityKind.BUILDING, "charger")
     assert len(charging.actions) > 1
     assert all(action.action.action == "charging_station/charge" for action in charging.actions)
+    assert dict(charging.actions[0].action.payload) == {
+        "q": 1,
+        "r": -1,
+        "efficiency": 1.0,
+    }
     assert charging.reserve_battery == 600
 
 

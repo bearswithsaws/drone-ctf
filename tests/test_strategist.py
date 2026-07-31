@@ -19,6 +19,7 @@ from agent.planning.strategist import (
     next_doctrine,
 )
 from agent.planning.tasks import MineLoop, ProduceDrone, Research, Strike
+from agent.sim.entity_sim import EntitySim
 from agent.world import Sighting, SightingSource, ThreatMap, TileObservation, TrackStore, WorldModel
 
 
@@ -28,6 +29,7 @@ class FakePipeliner:
     def __init__(self) -> None:
         self.registered: dict[tuple[str, str], Any] = {}
         self.replaced: list[tuple[str, str]] = []
+        self.invalidated: list[tuple[str, str]] = []
 
     def register(self, kind: str, entity_id: str, output: Any) -> None:
         key = (kind, entity_id)
@@ -38,6 +40,9 @@ class FakePipeliner:
     async def replace_plan(self, kind: str, entity_id: str, output: Any) -> None:
         self.replaced.append((kind, entity_id))
         self.registered[(kind, entity_id)] = output
+
+    async def invalidate(self, kind: str, entity_id: str) -> None:
+        self.invalidated.append((kind, entity_id))
 
 
 @dataclass
@@ -280,3 +285,81 @@ async def test_tick_scoreboard_shifts_posture_to_all_in() -> None:
     finally:
         await strat.stop()
     assert doctrine is Doctrine.ALL_IN
+
+
+async def test_resource_discovery_flushes_unassigned_bootstrap_scout() -> None:
+    ctx = await _base_context()
+    await ctx.world.upsert_drone("d1", q=0, r=0, direction=0, cycle=1)
+    await ctx.world.upsert_drone("d2", q=1, r=0, direction=0, cycle=1)
+
+    factory = lambda entity, task, context: [{"action": "noop", "payload": {}}]
+    strat = Strategist(
+        controller_factories={"scout_sector": factory, "mine_loop": factory},
+        config=StrategistConfig(tick_interval_s=60),
+    )
+    await strat.start(ctx)
+    try:
+        await strat.tick()
+        assert sum(task_id == "scout:bootstrap" for task_id in strat._installed.values()) == 2
+
+        await ctx.world.observe_tile(
+            TileObservation(
+                q=3,
+                r=0,
+                terrain_type=1,
+                has_resource=True,
+                resource_type="titanium_ore",
+            ),
+            cycle=2,
+        )
+        await strat.tick()
+
+        assert not any(task_id == "scout:bootstrap" for task_id in strat._installed.values())
+        assert ctx.pipeliner.invalidated
+    finally:
+        await strat.stop()
+
+
+async def test_low_battery_safety_pin_persists_until_recovery() -> None:
+    ctx = await _base_context()
+    ctx.entity_sim = EntitySim()
+    await ctx.world.observe_tile(
+        TileObservation(
+            q=3,
+            r=0,
+            terrain_type=1,
+            has_resource=True,
+            resource_type="titanium_ore",
+        ),
+        cycle=1,
+    )
+    await ctx.world.upsert_drone("d1", q=0, r=0, direction=0, cycle=1)
+    await ctx.world.upsert_drone("d2", q=1, r=0, direction=0, cycle=1)
+    ctx.entity_sim.seed_drone("d1", current_battery=300, max_battery=1000)
+    ctx.entity_sim.seed_drone("d2", current_battery=1000, max_battery=1000)
+
+    factory = lambda entity, task, context: [{"action": "noop", "payload": {}}]
+    strat = Strategist(
+        controller_factories={"recharge": factory, "mine_loop": factory},
+        config=StrategistConfig(tick_interval_s=60),
+    )
+    await strat.start(ctx)
+    try:
+        # Safety remains authoritative even when a commander directive pins
+        # this drone to a normal mission.
+        strat._directive_overrides["d1"] = "mine:3,0"
+        await strat.tick()
+        assert ctx.allocator.last_result.task_for("d1").kind == "recharge"
+
+        ctx.entity_sim.seed_drone("d1", current_battery=500, max_battery=1000)
+        await strat.tick()
+        assert ctx.allocator.last_result.task_for("d1").kind == "recharge"
+
+        ctx.entity_sim.seed_drone("d1", current_battery=900, max_battery=1000)
+        await strat.tick()
+        task = ctx.allocator.last_result.task_for("d1")
+        assert task is not None
+        assert task.task_id == "mine:3,0"
+        assert ("drone", "d1") in ctx.pipeliner.replaced
+    finally:
+        await strat.stop()

@@ -3,6 +3,7 @@ controller factories)."""
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -16,6 +17,9 @@ from agent.planning.live import (
 from agent.planning.pipeliner import EntityKind, PlannedAction
 from agent.planning.strategist import ScoreState, Strategist
 from agent.planning.tasks import ProduceDrone, Research
+from agent.sim.entity_sim import EntitySim
+from agent.world.model import TileObservation, WorldModel
+from agent.world.tiles import Terrain
 
 
 @dataclass
@@ -142,6 +146,7 @@ async def test_miner_output_routes_building_leg_once() -> None:
     out = _MinerOutput(miner, pipeliner)
     assert await out() is None
     assert await out() is None  # identical leg not reinstalled
+    await asyncio.sleep(0)
     assert len(pipeliner.replaced) == 1
     kind, entity_id, actions = pipeliner.replaced[0]
     assert kind is EntityKind.BUILDING and entity_id == "charger"
@@ -189,21 +194,43 @@ class _Building:
 
 def test_factories_cover_strategist_task_kinds() -> None:
     factories = build_controller_factories()
-    assert set(factories) == {"mine_loop", "research", "produce_drone", "scout_sector"}
+    assert set(factories) == {
+        "mine_loop", "research", "produce_drone", "scout_sector", "recharge",
+    }
 
 
-def test_bootstrap_scout_alternates_scan_and_turn_forever() -> None:
+async def test_bootstrap_scout_moves_then_waits_for_scan_observation() -> None:
     from agent.planning.tasks import ScoutSector
 
+    world = WorldModel()
+    sim = EntitySim()
+    await world.upsert_drone("d1", q=0, r=0, direction=0, cycle=1)
+    await world.observe_tiles(
+        [
+            TileObservation(q=0, r=0, terrain_type=Terrain.NORMAL),
+            TileObservation(q=1, r=-1, terrain_type=Terrain.NORMAL),
+            TileObservation(q=2, r=-1, terrain_type=Terrain.NORMAL),
+        ],
+        cycle=1,
+    )
+    sim.seed_drone(
+        "d1",
+        current_battery=1000,
+        max_battery=1000,
+        equipment=("propulsion", "sensors"),
+    )
+    threat = type("Threat", (), {"cost_at": lambda self, coord: 0.0})()
+    ctx = _Ctx(entity_sim=sim, world=world, threat_map=threat)
     factories = build_controller_factories()
     output = factories["scout_sector"](
-        None, ScoutSector(task_id="scout:bootstrap", center=(0, 0), radius=8), _Ctx()
+        type("Drone", (), {"drone_id": "d1"})(),
+        ScoutSector(task_id="scout:bootstrap", center=(0, 0), radius=8),
+        ctx,
     )
-    actions = [output() for _ in range(5)]
-    assert [a.action for a in actions] == [
-        "sensors/scan", "propulsion/turn", "sensors/scan", "propulsion/turn", "sensors/scan",
+    actions = [output() for _ in range(4)]
+    assert [a.action if a is not None else None for a in actions] == [
+        "propulsion/drive", "propulsion/drive", "sensors/scan", None,
     ]
-    assert actions[1].payload == {"direction": 1, "level": 1}
 
 
 def test_research_factory_emits_when_affordable() -> None:
@@ -257,6 +284,6 @@ def test_build_strategist_wires_everything() -> None:
     strat = build_strategist(FakeRest([FakeResult(SCOREBOARD)]), "me")
     assert isinstance(strat, Strategist)
     assert set(strat.controller_factories) == {
-        "mine_loop", "research", "produce_drone", "scout_sector",
+        "mine_loop", "research", "produce_drone", "scout_sector", "recharge",
     }
     assert isinstance(strat.score_source, ScoreboardSource)

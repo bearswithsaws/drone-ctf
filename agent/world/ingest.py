@@ -28,6 +28,7 @@ from agent.rules import hexmath
 from agent.rules.geometry import relative_to_absolute
 from agent.world.model import TileObservation, WorldModel
 from agent.world.tiles import Source
+from agent.world.tracks import Sighting, SightingSource, TrackStore
 
 log = logging.getLogger("agent.world.ingest")
 
@@ -48,8 +49,9 @@ class Ingestor:
     """Applies inbound messages to a :class:`WorldModel`. Subscribe :meth:`on_message`
     to the bus's message topic."""
 
-    def __init__(self, world: WorldModel) -> None:
+    def __init__(self, world: WorldModel, tracks: "TrackStore | None" = None) -> None:
         self._world = world
+        self._tracks = tracks
         # drone_id -> list of (scan_data, cycle) awaiting a known drone position.
         self._pending_scans: dict[str, list[tuple[dict[str, Any], int]]] = {}
         self._rules = self._build_rules()
@@ -150,11 +152,13 @@ class Ingestor:
 
     async def _apply_scan(self, scan_data: dict[str, Any], origin: tuple[int, int], cycle: int) -> None:
         obs: list[TileObservation] = []
+        enemy_coords: list[tuple[int, int]] = []
         for tile in scan_data.get("tiles", []) or []:
             rel = _coord(tile.get("coordinates"))
             if rel is None:
                 continue
             aq, ar = relative_to_absolute(rel, origin=origin)
+            has_drone = bool(tile.get("has_drone", False))
             obs.append(
                 TileObservation(
                     q=aq,
@@ -163,11 +167,18 @@ class Ingestor:
                     elevation=tile.get("elevation"),
                     has_resource=bool(tile.get("has_resource", False)),
                     has_building=bool(tile.get("has_building", False)),
-                    has_drone=bool(tile.get("has_drone", False)),
+                    has_drone=has_drone,
                 )
             )
+            # A scanned drone that isn't one of ours is an enemy sighting. Scan
+            # gives no identity, so this is a position-only track seed.
+            if has_drone and not self._own_occupied((aq, ar)):
+                enemy_coords.append((aq, ar))
         if obs:
             await self._world.observe_tiles(obs, cycle=cycle, source=Source.SCAN)
+        if self._tracks is not None:
+            for aq, ar in enemy_coords:
+                await self._tracks.observe(Sighting(SightingSource.SCAN, aq, ar, cycle))
 
     async def _on_identify(self, msg: dict[str, Any], cycle: int) -> None:
         drone_id = msg.get("drone_id")
@@ -200,6 +211,18 @@ class Ingestor:
             cycle=cycle,
             source=Source.IDENTIFY,
         )
+        # Identify resolves enemy identity + decoy status at this tile.
+        if self._tracks is not None:
+            for d in data.get("drones", []) or []:
+                did = d.get("drone_id")
+                if did and self._world.get_drone(did) is not None:
+                    continue  # one of ours
+                # Seed heuristic (also used by the reference client): a 1-HP unit
+                # with <=1 equipment is a decoy.
+                is_decoy = d.get("max_health") == 1 and len(d.get("equipment") or []) <= 1
+                await self._tracks.observe(
+                    Sighting(SightingSource.IDENTIFY, aq, ar, cycle, drone_id=did, is_decoy=is_decoy)
+                )
 
     async def _on_drive(self, msg: dict[str, Any], cycle: int) -> None:
         drone_id = msg.get("drone_id")
@@ -266,6 +289,11 @@ class Ingestor:
         if rec is None:
             return None
         return rec.coord
+
+    def _own_occupied(self, coord: tuple[int, int]) -> bool:
+        """Whether one of our own drones is at ``coord`` (so a scanned drone
+        there is friendly, not an enemy contact)."""
+        return any(d.coord == coord for d in self._world.drones())
 
     async def _flush_pending_scans(self, drone_id: str, cycle: int) -> None:
         """Replay scans buffered before the drone's position was known.

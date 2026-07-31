@@ -15,6 +15,14 @@ from agent.world.tiles import (
     Terrain,
     TileBelief,
 )
+from agent.world.tracks import (
+    TOPIC_TRACK_CHANGED,
+    BearingSighting,
+    EnemyTrack,
+    Sighting,
+    SightingSource,
+    TrackStore,
+)
 
 __all__ = [
     "Ingestor",
@@ -29,4 +37,10 @@ __all__ = [
     "Terrain",
     "Source",
     "DEFAULT_CONFIDENCE_HALF_LIFE",
+    "TrackStore",
+    "EnemyTrack",
+    "Sighting",
+    "BearingSighting",
+    "SightingSource",
+    "TOPIC_TRACK_CHANGED",
 ]

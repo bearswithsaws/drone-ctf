@@ -13,7 +13,7 @@ from agent.telemetry.recorder import RECORDING_VERSION
 from agent.transport.ws import TOPIC_MESSAGE
 from agent.world import Ingestor, TrackStore, WorldModel
 
-SNAPSHOT_VERSION = 2
+SNAPSHOT_VERSION = 3
 
 
 class ReplayFormatError(ValueError):
@@ -182,4 +182,17 @@ def _json_object(line: str, path: Path, line_number: int) -> dict[str, Any]:
 
 
 def _sorted_dataclasses(values: Any, id_field: str) -> list[dict[str, Any]]:
-    return [asdict(value) for value in sorted(values, key=lambda item: getattr(item, id_field))]
+    return [
+        _json_native(asdict(value))
+        for value in sorted(values, key=lambda item: getattr(item, id_field))
+    ]
+
+
+def _json_native(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _json_native(item) for key, item in value.items()}
+    if isinstance(value, (set, frozenset)):
+        return sorted(_json_native(item) for item in value)
+    if isinstance(value, (list, tuple)):
+        return [_json_native(item) for item in value]
+    return value

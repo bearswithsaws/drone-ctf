@@ -48,12 +48,35 @@ class DroneSimState:
     loaded_ammo_type: str | None = None
     cargo: dict[str, int] = field(default_factory=dict)
     hopper_capacity: int = 0
+    current_health: int = 0
+    max_health: int = 0
+    shields: int = 0
+    max_shields: int = 0
+    equipment: frozenset[str] = field(default_factory=frozenset)
+    functional_equipment: frozenset[str] = field(default_factory=frozenset)
+    equipment_levels: dict[str, int] = field(default_factory=dict)
 
     @property
     def hopper_load(self) -> int:
         """Total units currently carried in the hopper."""
 
         return sum(max(0, amount) for amount in self.cargo.values())
+
+    @property
+    def health_fraction(self) -> float:
+        """Current chassis health in ``[0, 1]`` (zero without a checkpoint)."""
+
+        if self.max_health <= 0:
+            return 0.0
+        return min(1.0, max(0.0, self.current_health / self.max_health))
+
+    @property
+    def battery_fraction(self) -> float:
+        """Current battery in ``[0, 1]`` (zero without a checkpoint)."""
+
+        if self.max_battery <= 0:
+            return 0.0
+        return min(1.0, max(0.0, self.current_battery / self.max_battery))
 
 
 @dataclass
@@ -195,10 +218,25 @@ class EntitySim:
         loaded_ammo_type: str | None = None,
         cargo: Mapping[str, int] | None = None,
         hopper_capacity: int = 0,
+        current_health: int | None = None,
+        max_health: int | None = None,
+        shields: int = 0,
+        max_shields: int = 0,
+        equipment: Iterable[str] = (),
+        functional_equipment: Iterable[str] | None = None,
+        equipment_levels: Mapping[str, int] | None = None,
     ) -> DroneSimState:
         """Install an explicit starting checkpoint (useful for replay/tests)."""
 
         maximum = max(0, int(max_battery if max_battery is not None else current_battery))
+        health = max(0, int(current_health or 0))
+        health_maximum = max(0, int(max_health if max_health is not None else health))
+        equipment_set = frozenset(str(item) for item in equipment)
+        functional_set = (
+            equipment_set
+            if functional_equipment is None
+            else frozenset(str(item) for item in functional_equipment)
+        )
         state = DroneSimState(
             drone_id=drone_id,
             current_battery=min(maximum, max(0, int(current_battery))),
@@ -210,6 +248,16 @@ class EntitySim:
             loaded_ammo_type=_canonical_ammo_type(loaded_ammo_type),
             cargo=_nonnegative_int_mapping(cargo),
             hopper_capacity=max(0, int(hopper_capacity)),
+            current_health=min(health_maximum, health),
+            max_health=health_maximum,
+            shields=min(max(0, int(max_shields)), max(0, int(shields))),
+            max_shields=max(0, int(max_shields)),
+            equipment=equipment_set,
+            functional_equipment=functional_set & equipment_set,
+            equipment_levels={
+                str(key): min(3, max(1, int(value)))
+                for key, value in (equipment_levels or {}).items()
+            },
         )
         self._drones[drone_id] = state
         return deepcopy(state)
@@ -455,12 +503,30 @@ class EntitySim:
         loaded_ammo = prior.loaded_ammo_type if prior is not None else None
         cargo = _nonnegative_int_mapping(status.get("cargo"))
         hopper_capacity = 0
+        current_health = _int_value(
+            status.get("current_health"), prior.current_health if prior else 0
+        )
+        max_health = _int_value(
+            status.get("max_health"), prior.max_health if prior else current_health
+        )
+        shields = _int_value(status.get("shields"), prior.shields if prior else 0)
+        max_shields = _int_value(status.get("max_shields"), prior.max_shields if prior else shields)
+        installed: set[str] = set()
+        functional: set[str] = set()
+        equipment_levels: dict[str, int] = {}
 
         for raw_item in equipment_items:
             item = _as_mapping(raw_item)
             equipment_type = _string_or_none(item.get("equipment_type"))
             if equipment_type is None:
                 continue
+            installed.add(equipment_type)
+            if bool(item.get("is_functional", not item.get("destroyed", False))):
+                functional.add(equipment_type)
+            if item.get("current_level") is not None:
+                equipment_levels[equipment_type] = min(
+                    3, max(1, _int_value(item.get("current_level"), 1))
+                )
             total_weight += max(0.0, _float_value(item.get("weight"), 0.0))
             if equipment_type in _CONSUMABLE_COUNT_FIELDS:
                 count = _extract_consumable_count(equipment_type, item)
@@ -489,6 +555,13 @@ class EntitySim:
             loaded_ammo_type=loaded_ammo,
             cargo=cargo,
             hopper_capacity=hopper_capacity,
+            current_health=min(max(0, max_health), max(0, current_health)),
+            max_health=max(0, max_health),
+            shields=min(max(0, max_shields), max(0, shields)),
+            max_shields=max(0, max_shields),
+            equipment=frozenset(installed),
+            functional_equipment=frozenset(functional),
+            equipment_levels=equipment_levels,
         )
         self._drones[drone_id] = state
         return state

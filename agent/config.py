@@ -19,6 +19,15 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CREDS = REPO_ROOT / "creds.txt"
 
+# Loopback-only defaults: the commander API is unauthenticated, so it must not
+# be reachable off the box unless an operator opts in explicitly.
+DEFAULT_COMMANDER_HOST = "127.0.0.1"
+DEFAULT_COMMANDER_PORT = 8787
+DEFAULT_COMMANDER_CORS_ORIGINS = (
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+)
+
 
 @dataclass(frozen=True)
 class Config:
@@ -38,6 +47,11 @@ class Config:
     world_database: Path = REPO_ROOT / "state" / "world.sqlite"
     match_id: str | None = None
     planning_enabled: bool = False
+    # Commander API served by the live runtime for control-plane.
+    commander_enabled: bool = True
+    commander_host: str = DEFAULT_COMMANDER_HOST
+    commander_port: int = DEFAULT_COMMANDER_PORT
+    commander_cors_origins: tuple[str, ...] = DEFAULT_COMMANDER_CORS_ORIGINS
 
     @property
     def api_base(self) -> str:
@@ -102,7 +116,9 @@ def load_config(creds_path: Path | None = None) -> Config:
       DRONE_ADMIN_USERNAME, DRONE_ADMIN_PASSWORD, DRONE_ADMIN_TOKEN,
       DRONE_TELEMETRY_PATH, DRONE_WORLD_DATABASE, DRONE_MATCH_ID,
       DRONE_PLANNING_ENABLED, DRONE_QUEUE_DEPTH_TARGET,
-      DRONE_SNAPSHOT_INTERVAL_S
+      DRONE_SNAPSHOT_INTERVAL_S, DRONE_COMMANDER_ENABLED,
+      DRONE_COMMANDER_HOST, DRONE_COMMANDER_PORT,
+      DRONE_COMMANDER_CORS_ORIGINS
     """
     creds = _parse_creds_file(creds_path or DEFAULT_CREDS)
 
@@ -149,6 +165,14 @@ def load_config(creds_path: Path | None = None) -> Config:
         ),
         match_id=os.environ.get("DRONE_MATCH_ID") or None,
         planning_enabled=_env_bool("DRONE_PLANNING_ENABLED", False),
+        commander_enabled=_env_bool("DRONE_COMMANDER_ENABLED", True),
+        commander_host=os.environ.get("DRONE_COMMANDER_HOST") or DEFAULT_COMMANDER_HOST,
+        commander_port=_env_int(
+            "DRONE_COMMANDER_PORT", DEFAULT_COMMANDER_PORT, minimum=0, maximum=65535
+        ),
+        commander_cors_origins=_env_origins(
+            "DRONE_COMMANDER_CORS_ORIGINS", DEFAULT_COMMANDER_CORS_ORIGINS
+        ),
     )
 
 
@@ -173,6 +197,18 @@ def _env_int(name: str, default: int, *, minimum: int, maximum: int) -> int:
     if not minimum <= value <= maximum:
         raise RuntimeError(f"{name} must be between {minimum} and {maximum}")
     return value
+
+
+def _env_origins(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    """Parse a comma-separated CORS allow-list; ``*`` stays an explicit opt-in."""
+
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    origins = tuple(origin.strip() for origin in raw.split(",") if origin.strip())
+    if not origins:
+        raise RuntimeError(f"{name} must list at least one origin")
+    return origins
 
 
 def _env_float(name: str, default: float, *, minimum: float) -> float:

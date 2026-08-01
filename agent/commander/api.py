@@ -17,6 +17,7 @@ from uuid import uuid4
 
 import socketio
 from fastapi import FastAPI, status
+from fastapi.middleware.cors import CORSMiddleware
 
 from agent.bus import EventBus
 from agent.commander.contract import (
@@ -152,6 +153,19 @@ class CommanderAPI:
             title="Drone CTF Commander API",
             version=CONTRACT_VERSION,
             lifespan=lifespan,
+        )
+        # The Socket.IO server has its own allow-list; the HTTP snapshot routes
+        # need the matching one so a browser control-plane can seed from them.
+        self.cors_allowed_origins = (
+            [cors_allowed_origins]
+            if isinstance(cors_allowed_origins, str)
+            else list(cors_allowed_origins)
+        )
+        self.http.add_middleware(
+            CORSMiddleware,
+            allow_origins=self.cors_allowed_origins,
+            allow_methods=["GET", "POST", "OPTIONS"],
+            allow_headers=["*"],
         )
         self.app = socketio.ASGIApp(self.sio, other_asgi_app=self.http)
         self._lock = asyncio.Lock()

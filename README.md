@@ -70,6 +70,29 @@ time-limited stance, squad-order, and per-entity override commands. Entity
 overrides pin the selected allocator task across replans until their absolute
 TTL expires; stance changes wake the live strategist immediately.
 
+The live runtime serves that facade itself, so `control-plane` connects to the
+agent directly instead of going through `drone-battle-client`. Uvicorn runs the
+combined FastAPI + Socket.IO app on `http://127.0.0.1:8787` by default:
+
+```
+GET  /v1/state        seed snapshot (tiles, drones, buildings, enemy tracks)
+GET  /v1/plan         latest planning snapshot
+POST /v1/directives   stance / squad order / entity override
+socket.io             world_diff, plan_changed, alert
+```
+
+A client seeds from `GET /v1/state` and then applies `world_diff` events, whose
+`sequence` continues from the snapshot's. The commander reads the runtime's own
+world model and enemy tracks and writes into the same directive store the
+planner consumes, so a posted directive takes effect on the next replan.
+`DRONE_COMMANDER_HOST`, `DRONE_COMMANDER_PORT`, and the comma-separated
+`DRONE_COMMANDER_CORS_ORIGINS` (default `http://localhost:5173`,
+`http://127.0.0.1:5173`) configure the listener; `DRONE_COMMANDER_ENABLED=false`
+turns it off. The API is unauthenticated, so it binds loopback unless an
+operator opts out deliberately. Startup failures (a busy port, for example) fail
+the runtime's startup and roll back the subsystems that had already started, and
+shutdown joins the server task before the runtime exits.
+
 In `--mode proof`, the E1.7 proof controller selects the first owned drone with
 a clear route, then repeatedly scans, drives forward three tiles, and reverses
 home. A finite `--duration` is checked between complete loops, so shutdown never

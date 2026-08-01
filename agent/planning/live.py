@@ -15,7 +15,8 @@ can run a playable agent:
 - ``produce_drone`` factory — :class:`ProductionController` expanded into a
   finite one-shot plan (the strategist re-issues it when the fleet changes).
 - ``scout_sector`` factory — :class:`ScoutController` adapted into a buffered
-  frontier leg that waits for each scan observation before replanning.
+  frontier leg that waits for each scan observation before replanning, and
+  drops that buffer as soon as the controller reports a hostile contact.
 - :func:`build_strategist` — the one call ``__main__`` makes.
 """
 
@@ -232,8 +233,15 @@ class _ScoutOutput:
         self._destination: tuple[int, int] | None = None
         self._awaiting_seen: int | None = None
         self._awaiting_cycle = 0
+        self._retreating = False
 
     def __call__(self) -> PlannedAction | None:
+        if not self._retreating and self._controller.contacts():
+            # Contact pre-empts the queued exploration leg: an unarmed scout
+            # must not spend its remaining drives walking towards a hostile.
+            self._buffer.clear()
+            self._awaiting_seen = None
+
         if self._awaiting_seen is not None:
             assert self._destination is not None
             tile = self._world.get_tile(self._destination)
@@ -247,6 +255,7 @@ class _ScoutOutput:
 
         if not self._buffer:
             plan = self._controller.plan()
+            self._retreating = plan.phase is ScoutPhase.RETREATING
             if plan.phase in (ScoutPhase.WAITING, ScoutPhase.BLOCKED):
                 if plan.reason:
                     log.debug(
@@ -256,6 +265,8 @@ class _ScoutOutput:
                         plan.reason,
                     )
                 return None
+            if self._retreating:
+                log.info("scout %s retreating: %s", self._controller.drone_id, plan.reason)
             self._buffer = list(plan.actions)
             self._destination = plan.destination
 
@@ -328,6 +339,7 @@ def build_controller_factories() -> dict[str, Any]:
             context.entity_sim,
             entity.drone_id,
             task,
+            tracks=context.tracks,
             threat_cost=lambda coord: context.threat_map.cost_at(coord),
         )
         return _ScoutOutput(controller, context.world)

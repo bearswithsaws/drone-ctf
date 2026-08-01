@@ -26,7 +26,13 @@ from agent.planning.controllers.miner import (
     RoutedAction,
     group_miner_actions,
 )
-from agent.planning.controllers.scout import ScoutConfig, ScoutController, ScoutPhase, ScoutPlan
+from agent.planning.controllers.scout import (
+    ScoutConfig,
+    ScoutContact,
+    ScoutController,
+    ScoutPhase,
+    ScoutPlan,
+)
 
 __all__ = [
     "BuildOrder",
@@ -51,6 +57,7 @@ __all__ = [
     "ResearchStep",
     "RoutedAction",
     "ScoutConfig",
+    "ScoutContact",
     "ScoutController",
     "ScoutPhase",
     "ScoutPlan",

@@ -600,6 +600,7 @@ class LiveMatchStrategy:
                 context.entity_sim,
                 drone_id,
                 task,
+                tracks=context.tracks,
                 threat_cost=context.threat_map,
             ).plan()
             return (EntityKind.DRONE, drone_id), plan.actions

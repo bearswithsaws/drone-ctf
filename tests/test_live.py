@@ -20,6 +20,7 @@ from agent.planning.tasks import ProduceDrone, Research
 from agent.sim.entity_sim import EntitySim
 from agent.world.model import TileObservation, WorldModel
 from agent.world.tiles import Terrain
+from agent.world.tracks import Sighting, SightingSource, TrackStore
 
 
 @dataclass
@@ -185,6 +186,7 @@ class _Ctx:
     pipeliner: Any = field(default_factory=FakePipeliner)
     world: Any = None
     threat_map: Any = None
+    tracks: Any = field(default_factory=TrackStore)
 
 
 @dataclass
@@ -231,6 +233,44 @@ async def test_bootstrap_scout_moves_then_waits_for_scan_observation() -> None:
     assert [a.action if a is not None else None for a in actions] == [
         "propulsion/drive", "propulsion/drive", "sensors/scan", None,
     ]
+
+
+async def test_scout_contact_preempts_the_buffered_frontier_leg() -> None:
+    from agent.planning.tasks import ScoutSector
+
+    world = WorldModel()
+    sim = EntitySim()
+    tracks = TrackStore()
+    await world.upsert_drone("d1", q=0, r=0, direction=0, cycle=1)
+    await world.observe_tiles(
+        [
+            TileObservation(q=0, r=0, terrain_type=Terrain.NORMAL),
+            TileObservation(q=-1, r=0, terrain_type=Terrain.NORMAL),
+            TileObservation(q=1, r=-1, terrain_type=Terrain.NORMAL),
+            TileObservation(q=2, r=-1, terrain_type=Terrain.NORMAL),
+        ],
+        cycle=1,
+    )
+    sim.seed_drone(
+        "d1",
+        current_battery=1000,
+        max_battery=1000,
+        equipment=("propulsion", "sensors"),
+    )
+    threat = type("Threat", (), {"cost_at": lambda self, coord: 0.0})()
+    ctx = _Ctx(entity_sim=sim, world=world, threat_map=threat, tracks=tracks)
+    output = build_controller_factories()["scout_sector"](
+        type("Drone", (), {"drone_id": "d1"})(),
+        ScoutSector(task_id="scout:bootstrap", center=(0, 0), radius=8),
+        ctx,
+    )
+    assert output().action == "propulsion/drive"
+
+    # A hostile appears ahead: the rest of the buffered outbound leg is dropped
+    # and the drone is walked away from the contact instead.
+    await tracks.observe(Sighting(SightingSource.SCAN, q=4, r=-2, cycle=1))
+
+    assert output().action == "propulsion/turn"
 
 
 def test_research_factory_emits_when_affordable() -> None:

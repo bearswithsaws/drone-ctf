@@ -190,7 +190,13 @@ LIVE_MESSAGES = [
 ]
 
 
-def config(tmp_path: Path, *, recording: str, planning_enabled: bool = False) -> Config:
+def config(
+    tmp_path: Path,
+    *,
+    recording: str,
+    planning_enabled: bool = False,
+    commander_enabled: bool = False,
+) -> Config:
     return Config(
         "https://game.test",
         "pilot",
@@ -200,6 +206,9 @@ def config(tmp_path: Path, *, recording: str, planning_enabled: bool = False) ->
         match_id="match-77",
         snapshot_interval_s=60,
         planning_enabled=planning_enabled,
+        commander_enabled=commander_enabled,
+        commander_host="127.0.0.1",
+        commander_port=0,
     )
 
 

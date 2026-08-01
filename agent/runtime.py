@@ -9,7 +9,9 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from agent.bus import EventBus
+from agent.commander.api import CommanderAPI
 from agent.commander.directives import DirectiveStore
+from agent.commander.server import CommanderServer
 from agent.config import Config
 from agent.planning import Pipeliner, TaskAllocator
 from agent.sim import EntitySim
@@ -122,6 +124,8 @@ class AgentRuntime:
     allocator: TaskAllocator[Any]
     directives: DirectiveStore
     planning: PlanningBoundary
+    commander: CommanderAPI | None = None
+    commander_server: CommanderServer | None = None
     _unsubscribers: list[Callable[[], None]] = field(default_factory=list)
     _tasks: list[asyncio.Task[Any]] = field(default_factory=list)
     _started: bool = False
@@ -143,9 +147,16 @@ class AgentRuntime:
 
     @property
     def background_tasks(self) -> tuple[asyncio.Task[Any], ...]:
-        planning_task = self.planning.task
         tasks = tuple(self._tasks)
-        return tasks if planning_task is None else (*tasks, planning_task)
+        planning_task = self.planning.task
+        if planning_task is not None:
+            tasks = (*tasks, planning_task)
+        commander_task = (
+            None if self.commander_server is None else self.commander_server.task
+        )
+        if commander_task is not None:
+            tasks = (*tasks, commander_task)
+        return tasks
 
     async def start(self) -> None:
         """Restore state, start persistence, then admit live transport events."""
@@ -169,6 +180,8 @@ class AgentRuntime:
                 asyncio.create_task(self.socket.run(), name="game-socket"),
             ]
             await self.planning.start()
+            if self.commander_server is not None:
+                await self.commander_server.start()
         except BaseException:
             await self.stop()
             raise
@@ -194,6 +207,10 @@ class AgentRuntime:
                 errors.append(exc)
                 log.exception("Runtime close operation failed")
 
+        if self.commander_server is not None:
+            await attempt(self.commander_server.stop)
+        if self.commander is not None:
+            await attempt(self.commander.close)
         await attempt(self.planning.stop)
         await attempt(self.directives.close)
         await attempt(self.socket.stop)
@@ -238,6 +255,7 @@ def compose_runtime(
     gap_fill: Callable[[int], Awaitable[list[dict[str, Any]]]] | None = None,
     tracker_factory: Callable[..., Any] = ActionTracker,
     socket_factory: Callable[..., Any] = GameSocket,
+    commander_server_factory: Callable[..., Any] = CommanderServer,
     strategy: PlanningStrategy | None = None,
 ) -> AgentRuntime:
     """Construct every completed subsystem from one runtime configuration."""
@@ -275,6 +293,23 @@ def compose_runtime(
         bus=bus,
         gap_fill=gap_fill,
     )
+    commander: CommanderAPI | None = None
+    commander_server: Any | None = None
+    if config.commander_enabled:
+        # Control-plane reads the runtime's own stores and writes back into the
+        # directive store the planner already consumes.
+        commander = CommanderAPI(
+            world,
+            tracks,
+            bus,
+            directives=directives,
+            cors_allowed_origins=list(config.commander_cors_origins),
+        )
+        commander_server = commander_server_factory(
+            commander,
+            host=config.commander_host,
+            port=config.commander_port,
+        )
     runtime = AgentRuntime(
         config=config,
         rest=rest,
@@ -294,6 +329,8 @@ def compose_runtime(
         allocator=allocator,
         directives=directives,
         planning=planning,
+        commander=commander,
+        commander_server=commander_server,
     )
     runtime.attach_consumers()
     return runtime

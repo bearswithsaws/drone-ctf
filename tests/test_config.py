@@ -63,6 +63,10 @@ def test_load_config_from_creds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
         "DRONE_STRATEGIST_TICK_S",
         "DRONE_SNAPSHOT_INTERVAL_S",
         "DRONE_SCOREBOARD_POLL_S",
+        "DRONE_COMMANDER_ENABLED",
+        "DRONE_COMMANDER_HOST",
+        "DRONE_COMMANDER_PORT",
+        "DRONE_COMMANDER_CORS_ORIGINS",
     ):
         monkeypatch.delenv(var, raising=False)
     cfg = load_config(_write(tmp_path))
@@ -71,6 +75,14 @@ def test_load_config_from_creds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     assert cfg.username == "user1"
     assert cfg.admin_token == "deadbeefcafe"
     assert cfg.persistence_match_id.startswith("runtime-")
+    # The commander API is unauthenticated: loopback only until opted out.
+    assert cfg.commander_enabled
+    assert cfg.commander_host == "127.0.0.1"
+    assert cfg.commander_port == 8787
+    assert cfg.commander_cors_origins == (
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    )
 
 
 def test_env_overrides_creds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -103,6 +115,12 @@ def test_runtime_settings_load_from_environment(
     monkeypatch.setenv("DRONE_STRATEGIST_TICK_S", "0.75")
     monkeypatch.setenv("DRONE_SNAPSHOT_INTERVAL_S", "2.5")
     monkeypatch.setenv("DRONE_SCOREBOARD_POLL_S", "3")
+    monkeypatch.setenv("DRONE_COMMANDER_ENABLED", "false")
+    monkeypatch.setenv("DRONE_COMMANDER_HOST", "0.0.0.0")
+    monkeypatch.setenv("DRONE_COMMANDER_PORT", "9999")
+    monkeypatch.setenv(
+        "DRONE_COMMANDER_CORS_ORIGINS", " https://ui.test , http://localhost:4173 "
+    )
 
     cfg = load_config(_write(tmp_path))
 
@@ -114,6 +132,10 @@ def test_runtime_settings_load_from_environment(
     assert cfg.strategist_tick_s == 0.75
     assert cfg.snapshot_interval_s == 2.5
     assert cfg.scoreboard_poll_s == 3
+    assert not cfg.commander_enabled
+    assert cfg.commander_host == "0.0.0.0"
+    assert cfg.commander_port == 9999
+    assert cfg.commander_cors_origins == ("https://ui.test", "http://localhost:4173")
 
 
 @pytest.mark.parametrize(
@@ -124,6 +146,9 @@ def test_runtime_settings_load_from_environment(
         ("DRONE_STRATEGIST_TICK_S", "0", "must be at least"),
         ("DRONE_SNAPSHOT_INTERVAL_S", "0", "must be at least"),
         ("DRONE_SCOREBOARD_POLL_S", "0", "must be at least"),
+        ("DRONE_COMMANDER_ENABLED", "maybe", "must be a boolean"),
+        ("DRONE_COMMANDER_PORT", "70000", "must be between 0 and 65535"),
+        ("DRONE_COMMANDER_CORS_ORIGINS", " , ", "must list at least one origin"),
     ],
 )
 def test_invalid_runtime_settings_fail_fast(

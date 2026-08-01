@@ -62,7 +62,8 @@ Our edges:
   (fitness auction + hysteresis + override pinning), `controllers/` (miner,
   scout, fighter, support, base), `pipeliner.py` (queue-saturation organ),
   `pathfind.py` (A* over terrain + threat + comms-risk + unknown costs).
-- `commander/` — `api.py` (FastAPI + Socket.IO facade), `directives.py`.
+- `commander/` — `api.py` (FastAPI + Socket.IO facade), `directives.py`,
+  `server.py` (runtime-owned uvicorn lifecycle for the facade).
 - `telemetry/` — `recorder.py` (jsonl replay fuel), `metrics.py`.
 
 Plus `packages/contract/` (versioned TS DTO/event types for control-plane, with

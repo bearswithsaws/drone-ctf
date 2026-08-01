@@ -195,6 +195,7 @@ async def test_runtime_wires_transport_controller_and_clean_shutdown(
         "secret",
         telemetry_path=tmp_path / "runtime.jsonl",
         world_database=tmp_path / "world.sqlite",
+        commander_enabled=False,
     )
 
     assert await agent_main.run(cfg, mode="proof", duration_s=600) == 0
@@ -220,6 +221,7 @@ async def test_play_mode_installs_strategist_and_runs_for_duration(
         "secret",
         telemetry_path=tmp_path / "runtime.jsonl",
         world_database=tmp_path / "world.sqlite",
+        commander_enabled=False,
     )
 
     assert await agent_main.run(cfg, mode="play", duration_s=0.05) == 0

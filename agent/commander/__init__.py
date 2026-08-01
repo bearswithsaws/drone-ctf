@@ -44,10 +44,12 @@ from agent.commander.directives import (
     DirectiveStore,
     TOPIC_DIRECTIVES_CHANGED,
 )
+from agent.commander.server import CommanderServer
 
 __all__ = [
     "CONTRACT_VERSION",
     "CommanderAPI",
+    "CommanderServer",
     "Alert",
     "AlertEvent",
     "BuildingState",
